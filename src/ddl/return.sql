@@ -14,12 +14,11 @@ And from IRS990PF:
 CREATE TABLE Return (
     ReturnId SERIAL PRIMARY KEY,
     EIN VARCHAR(9),
+    ReturnFile VARCHAR(30),
     TaxPeriodEnd DATE,
     TaxPeriodBegin DATE,
-    ReturnTs TIMESTAMP,
     ReturnType VARCHAR(10),
     TaxYear INTEGER,
-    BuildTs TIMESTAMP,
     Organization501c3ExemptPF BOOLEAN,
     FMVAssetsEOY DECIMAL(15,2),
     MethodOfAccountingCash BOOLEAN,

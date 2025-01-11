@@ -30,8 +30,8 @@ def insert_filer(conn, data):
     """
     with conn.cursor() as cur:
         cur.execute("""
-            INSERT INTO filer (ein, business_name_line1, business_name_line2, phone_number,
-                               address_line1, city, state, zip)
+            INSERT INTO filer (EIN, BusinessNameLine1, BusinessNameLine2, PhoneNum,
+                               AddressLine1, City, State, ZIPCode)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         """, (data['ein'], data['business_name_line1'], data['business_name_line2'],
               data['phone_number'], data['address_line1'], data['city'], data['state'], data['zip']))

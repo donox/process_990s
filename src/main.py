@@ -6,8 +6,9 @@ import os
 PROJECT_BASE = "/home/don/PycharmProjects/Postgres_Chat"
 CONFIG_FILE = os.path.join(PROJECT_BASE, "config.yml")
 DDL_DIR = os.path.join(PROJECT_BASE, "src/ddl")
-xml_dir = '/home/don/Documents/Temp/dev990/summary/20038'
-
+xml_dir = '/home/don/Documents/Temp/dev990'
+include_dirs = ['2023', '2024']
+exclude_dirs = ['zip_files', 'raw', 'result', 'summary', 'data', 'logs']
 
 def main():
     # Load configuration
@@ -19,7 +20,7 @@ def main():
     try:
         # Initialize or modify tables
         print("Initializing or modifying database tables...")
-        initialize_tables(conn, DDL_DIR)
+        # initialize_tables(conn, DDL_DIR)    # Fails on any table modification
         process_directory(xml_dir, conn)
 
         # Additional logic for processing XML files, etc.
@@ -28,6 +29,7 @@ def main():
     finally:
         conn.close()
         print("Database connection closed.")
+
 
 if __name__ == "__main__":
     main()
