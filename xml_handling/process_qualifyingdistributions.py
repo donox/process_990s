@@ -4,7 +4,7 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 
-def handler(conn, return_id, root):
+def handler(conn, return_id, root, file_path):
     """
     Handler for processing qualifyingdistributions data.
     Extracts data from the XML and inserts it into the `qualifyingdistributions` table.
@@ -19,7 +19,7 @@ def handler(conn, return_id, root):
     """
     try:
         # Extract qualifyingdistributions data
-        qualifyingdistributions = extract_qualifyingdistributions(root)
+        qualifyingdistributions = extract_qualifyingdistributions(root, file_path)
         if not qualifyingdistributions:
             return True  # No data to process
 
@@ -32,7 +32,7 @@ def handler(conn, return_id, root):
         return False
 
 
-def extract_qualifyingdistributions(root):
+def extract_qualifyingdistributions(root, file_path):
     """
     Extract data for the `financials` table from the XML file.
     """

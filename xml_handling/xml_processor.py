@@ -48,6 +48,10 @@ def parse_and_insert(file_path, conn, modules):
         root = tree.getroot()
         root = remove_namespaces_and_attributes(root)
 
+        foo = root.find('./ReturnData/IRS990PF/DistributableAmountGrp')
+        if foo is not None:
+            print(f"DistributableAmountGrp found in file: {file_path}")
+
         # filer and return ddl requires non-standard handling as filer creates the foreign key needed by
         # return and return generates the foreign key needed by all other handlers.
         # Extract and insert filer
@@ -63,7 +67,7 @@ def parse_and_insert(file_path, conn, modules):
         # Process each module
         for module in modules:
             # Call the module's handler function
-            handler_result = module.handler(conn, return_id, root)
+            handler_result = module.handler(conn, return_id, root, file_path)
             if not handler_result:
                 print(f"Handler for module {module.__name__} failed.")
 
@@ -97,17 +101,22 @@ def process_directory(directory, conn):
     # Dynamically load modules
     modules = load_modules()
 
-    file_count = 0
+    file_count = 10
+    skip_count = 0
     # Iterate through each pattern and process matching files
     for pattern in patterns:
         for file_path in glob.glob(pattern, recursive=True):
             # Check if the file has the correct extension
             if file_path.endswith('.xml'):
+                if skip_count > 0:
+                    skip_count -= 1
+                    continue
                 # Process the file
                 parse_and_insert(file_path, conn, modules)
                 file_count += 1                             # LIMIT ITERATION
-                if file_count > 10:
+                if file_count > 1000000:
                     return
+    print(f"Total Files Processed: {file_count}")
 
 
 def load_modules():
@@ -147,11 +156,10 @@ def find_process_modules(directory="."):
     modules = []
 
     # Scan the directory
-    # for file_name in os.listdir(directory):
-    #     if module_pattern.match(file_name):
-    #         # Remove the .py extension
-    #         module_name = os.path.splitext(file_name)[0]
-    #         modules.append(module_name)
-    modules.append('process_qualifyingdistributions')
+    for file_name in os.listdir(directory):
+        if module_pattern.match(file_name):
+            # Remove the .py extension
+            module_name = os.path.splitext(file_name)[0]
+            modules.append(module_name)
 
     return modules

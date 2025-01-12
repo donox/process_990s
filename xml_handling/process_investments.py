@@ -4,7 +4,7 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 
-def handler(conn, return_id, root):
+def handler(conn, return_id, root, file_path):
     """
     Handler for processing investments data.
     Extracts data from the XML and inserts it into the `investments` table.
@@ -19,7 +19,7 @@ def handler(conn, return_id, root):
     """
     try:
         # Extract investments data
-        investments = extract_investments(root)
+        investments = extract_investments(root, file_path)
         if not investments:
             return True  # No data to process
 
@@ -31,7 +31,8 @@ def handler(conn, return_id, root):
         print(f"Error processing investments for return ID {return_id}: {e}")
         return False
 
-def extract_investments(root):
+
+def extract_investments(root, file_path):
     """
     Extract data for the `investments` table from the XML file.
     """
@@ -55,9 +56,12 @@ def insert_investments(conn, return_id, data):
     """
     Insert data into the `investments` table.
     """
-    with conn.cursor() as cur:
-        for investment in data:
-            cur.execute("""
-                INSERT INTO investments (return_id, stock_name, eoy_book_value, eoy_fmv)
-                VALUES (%s, %s, %s, %s);
-            """, (return_id, investment['stock_name'], investment['eoy_book_value'], investment['eoy_fmv']))
+    try:
+        with conn.cursor() as cur:
+            for investment in data:
+                cur.execute("""
+                    INSERT INTO investments (return_id, stock_name, eoy_book_value, eoy_fmv)
+                    VALUES (%s, %s, %s, %s);
+                """, (return_id, investment['stock_name'], investment['eoy_book_value'], investment['eoy_fmv']))
+    except Exception as e:
+        print(f"Error on insert to invstements: {e}")
