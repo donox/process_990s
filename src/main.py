@@ -1,10 +1,9 @@
+import datetime
+
 from db_management.insert_data import load_config, connect_to_db
 from db_management.initialize_tables import initialize_tables
 from xml_handling.xml_processor import process_directory
-from reports.data_sources import sql_queries as query
 from reports.generators import report_builders as rb
-from reports.processors import data_transformers as dt
-
 import os
 import csv
 
@@ -13,6 +12,7 @@ CONFIG_FILE = os.path.join(PROJECT_BASE, "config.yml")
 UNHANDLED = os.path.join(PROJECT_BASE, "unhandled_elements.csv")
 DDL_DIR = os.path.join(PROJECT_BASE, "src/ddl")
 xml_dir = '/home/don/Documents/Wonders/dev990'
+reports_dir = '/home/don/Documents/Wonders/reports'
 include_dirs = ['2023', '2024']
 exclude_dirs = ['zip_files', 'raw', 'result', 'summary', 'data', 'logs']
 
@@ -61,10 +61,21 @@ def main():
     conn = connect_to_db(config)
 
     try:
+        # WORK ON DB
         # Initialize or modify tables
-        print("Initializing or modifying database tables...")
-        initialize_tables(conn, DDL_DIR)    # Fails on any table modification
-        process_directory(xml_dir, conn)
+        # print("Initializing or modifying database tables...")
+        # initialize_tables(conn, DDL_DIR)    # Fails on any table modification
+        # process_directory(xml_dir, conn)
+
+        # BUILD REPORTS
+        start_date = datetime.date(2001, 1,1)
+        end_date = datetime.date(2002, 1, 1)
+        queries = ["View1", "View2"]
+        params = {"View1": (start_date, end_date)}
+        report = rb.SampleReport(reports_dir,"generated_report", "sample_report",
+                                 queries=queries, params=params)
+        result = report.generate()
+        print(f"REPORT: {result}, Done")
 
         # Additional logic for processing XML files, etc.
     except Exception as e:

@@ -111,16 +111,16 @@ def process_directory(directory, conn):
     modules = load_modules()
 
     file_count = 0
-    skip_count = 13
+    # skip_count = 13
     # Iterate through each pattern and process matching files
     for pattern in patterns:
         try:
             for file_path in glob.glob(pattern, recursive=True):
                 # Check if the file has the correct extension
                 if file_path.endswith('.xml'):
-                    if skip_count > 0:
-                        skip_count -= 1
-                        continue
+                    # if skip_count > 0:
+                    #     skip_count -= 1
+                    #     continue
                     # Process the file
                     parse_and_insert(file_path, conn, modules)
                     file_count += 1                             # LIMIT ITERATION
