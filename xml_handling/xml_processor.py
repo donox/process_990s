@@ -62,7 +62,16 @@ def parse_and_insert(file_path, conn, modules):
         # Extract and insert returns
         return_data = extract_returns(root, file_path)
         if return_data:
-            return_id = insert_returns(conn, return_data)
+            # return_id = insert_returns(conn, return_data)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT returnid from return
+                         WHERE returnfile = %s;""", ((return_data["return_file"],)))
+                    return_id = cur.fetchone()[0]
+            except Exception as e:
+                print(f"Error on insert to retrieval of return id in file: {file_path}\n {e}")
+                return
 
         # Process each module
         for module in modules:
@@ -101,21 +110,24 @@ def process_directory(directory, conn):
     # Dynamically load modules
     modules = load_modules()
 
-    file_count = 10
-    skip_count = 0
+    file_count = 0
+    skip_count = 13
     # Iterate through each pattern and process matching files
     for pattern in patterns:
-        for file_path in glob.glob(pattern, recursive=True):
-            # Check if the file has the correct extension
-            if file_path.endswith('.xml'):
-                if skip_count > 0:
-                    skip_count -= 1
-                    continue
-                # Process the file
-                parse_and_insert(file_path, conn, modules)
-                file_count += 1                             # LIMIT ITERATION
-                if file_count > 1000000:
-                    return
+        try:
+            for file_path in glob.glob(pattern, recursive=True):
+                # Check if the file has the correct extension
+                if file_path.endswith('.xml'):
+                    if skip_count > 0:
+                        skip_count -= 1
+                        continue
+                    # Process the file
+                    parse_and_insert(file_path, conn, modules)
+                    file_count += 1                             # LIMIT ITERATION
+                    if file_count > 100000:
+                        return
+        except Exception as e:
+            print(f"Error in traversing directory: {e}")
     print(f"Total Files Processed: {file_count}")
 
 
@@ -160,6 +172,8 @@ def find_process_modules(directory="."):
         if module_pattern.match(file_name):
             # Remove the .py extension
             module_name = os.path.splitext(file_name)[0]
+            if module_name not in ["process_compensation", "process_expenses"]:
+                continue
             modules.append(module_name)
 
     return modules

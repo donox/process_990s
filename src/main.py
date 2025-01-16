@@ -1,6 +1,10 @@
 from db_management.insert_data import load_config, connect_to_db
 from db_management.initialize_tables import initialize_tables
 from xml_handling.xml_processor import process_directory
+from reports.data_sources import sql_queries as query
+from reports.generators import report_builders as rb
+from reports.processors import data_transformers as dt
+
 import os
 import csv
 
@@ -8,7 +12,7 @@ PROJECT_BASE = "/home/don/PycharmProjects/Postgres_Chat"
 CONFIG_FILE = os.path.join(PROJECT_BASE, "config.yml")
 UNHANDLED = os.path.join(PROJECT_BASE, "unhandled_elements.csv")
 DDL_DIR = os.path.join(PROJECT_BASE, "src/ddl")
-xml_dir = '/home/don/Documents/Temp/dev990'
+xml_dir = '/home/don/Documents/Wonders/dev990'
 include_dirs = ['2023', '2024']
 exclude_dirs = ['zip_files', 'raw', 'result', 'summary', 'data', 'logs']
 

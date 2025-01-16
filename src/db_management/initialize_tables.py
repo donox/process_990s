@@ -175,28 +175,30 @@ def initialize_tables(conn, ddl_dir):
     Initialize or modify database tables based on DDL scripts.
     """
     table_ddl_files = {
-        "filer": os.path.join(ddl_dir, "filer.sql"),
-        "return": os.path.join(ddl_dir, "return.sql"),
+        # "filer": os.path.join(ddl_dir, "filer.sql"),        # DONE
+        # "return": os.path.join(ddl_dir, "return.sql"),        # DONE
         # "accounting_fees": os.path.join(ddl_dir, "accounting_fees.sql"),
         # "asset_sales": os.path.join(ddl_dir, "asset_sales.sql"),
         # "business_officer": os.path.join(ddl_dir, "business_officer.sql"),
-        "distributable_amount": os.path.join(ddl_dir, "distributable_amount.sql"),
+        # "compensation": os.path.join(ddl_dir, "compensation.sql"),       # DONE
+        # "distributable_amount": os.path.join(ddl_dir, "distributable_amount.sql"),        # DONE
         # "excise_tax": os.path.join(ddl_dir, "excise_tax.sql"),
-        "grants_and_contributions": os.path.join(ddl_dir, "grants_and_contributions.sql"),
-        "investments": os.path.join(ddl_dir, "investments.sql"),
+        # "expenses": os.path.join(ddl_dir, "expenses.sql"),  # DONE
+        # "grants_and_contributions": os.path.join(ddl_dir, "grants_and_contributions.sql"),        # DONE
+        # "investments": os.path.join(ddl_dir, "investments.sql"),        # DONE
         # "minimum_investment_return": os.path.join(ddl_dir, "minimum_investment_return.sql"),
         # "other_expenses": os.path.join(ddl_dir, "other_expenses.sql"),
         # "preparer_firm": os.path.join(ddl_dir, "preparer_firm.sql"),
         # "preparer_person": os.path.join(ddl_dir, "preparer_person.sql"),
-        "qualifying_distributions": os.path.join(ddl_dir, "qualifying_distributions.sql"),
-        "return_balance_sheet": os.path.join(ddl_dir, "return_balance_sheet.sql"),
+        # "qualifying_distributions": os.path.join(ddl_dir, "qualifying_distributions.sql"),        # DONE
+        # "return_balance_sheet": os.path.join(ddl_dir, "return_balance_sheet.sql"),        # DONE
         # "return_preparer": os.path.join(ddl_dir, "return_preparer.sql"),
-        "revenue_and_expenses": os.path.join(ddl_dir, "revenue_and_expenses.sql"),
         # "signing_officer": os.path.join(ddl_dir, "signing_officer.sql"),
         # "statement_regarding_activities": os.path.join(ddl_dir, "statement_regarding_activities.sql"),
         # "statements_regarding_activities": os.path.join(ddl_dir, "statements_regarding_activities.sql"),
+        # "supplementary_information": os.path.join(ddl_dir, "supplementary_information.sql"),         # DONE
         # "taxes_detail": os.path.join(ddl_dir, "taxes_detail.sql"),
-        "undistributed_income": os.path.join(ddl_dir, "undistributed_income.sql"),
+        # "undistributed_income": os.path.join(ddl_dir, "undistributed_income.sql"),        # DONE
     }
 
     for table_name, ddl_file in table_ddl_files.items():

@@ -48,7 +48,6 @@ def extract_grants_and_contributions(base_element, file_path):
         add_unhandled(file_path, base_element.tag)
         return None
 
-    # Example fields - adjust based on actual XML and table schema
     recipient_name = grants_data.findtext('./RecipientBusinessName/BusinessNameLine1Txt', default=None)
     recipient_address = grants_data.findtext('./RecipientUSAddress/AddressLine1Txt', default=None)
     recipient_city = grants_data.findtext('./RecipientUSAddress/CityNm', default=None)
