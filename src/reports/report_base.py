@@ -106,9 +106,13 @@ class BaseReport:
                     # Get the actual SQL from our collected queries
                     sql = self.queries[query_name]
                     sql = sql.lower()
-                    # print(f"Executing SQL: {sql}")
-
-                    cur.execute(sql, None)  # No params for now
+                    if query_name in self.query_params.keys():
+                        params = self.query_params[query_name]
+                        if type(params) not in (list, tuple):
+                            params = (params,)
+                        cur.execute(sql, params)     # parameter must be tuple or list
+                    else:
+                        cur.execute(sql)
                     results[query_name] = cur.fetchall()
 
             return results
@@ -118,10 +122,6 @@ class BaseReport:
             conn.rollback()
             raise
 
-    def gather_data(self):
-        self.data.update(self.execute_query(self.queries_to_run))
-
-    # Usage examples:
     def gather_data(self):
         # Single query
         self.data.update(self.execute_query('sales', (self.start_date, self.end_date)))

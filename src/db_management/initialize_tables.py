@@ -186,6 +186,7 @@ def initialize_tables(conn, ddl_dir):
         # "expenses": os.path.join(ddl_dir, "expenses.sql"),  # DONE
         # "grants_and_contributions": os.path.join(ddl_dir, "grants_and_contributions.sql"),        # DONE
         # "investments": os.path.join(ddl_dir, "investments.sql"),        # DONE
+        # "key_contacts": os.path.join(ddl_dir, "key_contacts.sql"),        # DONE
         # "minimum_investment_return": os.path.join(ddl_dir, "minimum_investment_return.sql"),
         # "other_expenses": os.path.join(ddl_dir, "other_expenses.sql"),
         # "preparer_firm": os.path.join(ddl_dir, "preparer_firm.sql"),

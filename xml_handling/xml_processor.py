@@ -48,16 +48,12 @@ def parse_and_insert(file_path, conn, modules):
         root = tree.getroot()
         root = remove_namespaces_and_attributes(root)
 
-        foo = root.find('./ReturnData/IRS990PF/DistributableAmountGrp')
-        if foo is not None:
-            print(f"DistributableAmountGrp found in file: {file_path}")
-
         # filer and return ddl requires non-standard handling as filer creates the foreign key needed by
         # return and return generates the foreign key needed by all other handlers.
         # Extract and insert filer
         filer_data = extract_filer(root)
-        if filer_data:
-            insert_filer(conn, filer_data)
+        # if filer_data:
+            # insert_filer(conn, filer_data)
 
         # Extract and insert returns
         return_data = extract_returns(root, file_path)
@@ -124,7 +120,7 @@ def process_directory(directory, conn):
                     # Process the file
                     parse_and_insert(file_path, conn, modules)
                     file_count += 1                             # LIMIT ITERATION
-                    if file_count > 100000:
+                    if file_count > 1000000:
                         return
         except Exception as e:
             print(f"Error in traversing directory: {e}")
@@ -172,7 +168,7 @@ def find_process_modules(directory="."):
         if module_pattern.match(file_name):
             # Remove the .py extension
             module_name = os.path.splitext(file_name)[0]
-            if module_name not in ["process_compensation", "process_expenses"]:
+            if module_name not in ["process_key_contacts",]:
                 continue
             modules.append(module_name)
 

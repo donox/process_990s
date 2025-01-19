@@ -3,7 +3,7 @@ import datetime
 from db_management.insert_data import load_config, connect_to_db
 from db_management.initialize_tables import initialize_tables
 from xml_handling.xml_processor import process_directory
-from reports.generators import report_builders as rb
+from reports.generators import single_filer as sf
 import os
 import csv
 
@@ -63,17 +63,22 @@ def main():
     try:
         # WORK ON DB
         # Initialize or modify tables
-        # print("Initializing or modifying database tables...")
+        print("Initializing or modifying database tables...")
         # initialize_tables(conn, DDL_DIR)    # Fails on any table modification
         # process_directory(xml_dir, conn)
 
         # BUILD REPORTS
-        start_date = datetime.date(2001, 1,1)
-        end_date = datetime.date(2002, 1, 1)
-        queries = ["View1", "View2"]
-        params = {"View1": (start_date, end_date)}
-        report = rb.SampleReport(reports_dir,"generated_report", "sample_report",
-                                 queries=queries, params=params)
+        filer_ein = 274133050       # Gallogly Foundation
+        start_date = str(datetime.date(2023, 1,1))
+        end_date = str(datetime.date(2024, 5, 1))
+        queries = ["FilerSummary", "Contacts", "Grants"]
+        params = {"Contacts": (str(filer_ein)),
+                  "Grants": (str(filer_ein)),
+                  "FilerSummary": str(filer_ein)}
+        other_data = {"start_date": start_date,
+                      "end_date": end_date}
+        report = sf.SingleFiler(reports_dir, "generated_report", "filer_report",
+                                queries=queries, params=params, other_data=other_data)
         result = report.generate()
         print(f"REPORT: {result}, Done")
 
