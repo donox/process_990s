@@ -1,7 +1,6 @@
 from src.reports.report_base import BaseReport
 from datetime import datetime
-from src.reports.data_sources.queries import sql_queries as sql
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from src.data_sources.queries import sql_queries as sql
 
 
 class SingleFiler(BaseReport):

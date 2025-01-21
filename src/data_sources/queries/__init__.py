@@ -9,5 +9,5 @@ QUERIES = {}
 query_dir = Path(__file__).parent
 for file in query_dir.glob('*_queries.py'):
     module_name = file.stem  # filename without extension
-    module = import_module(f'.{module_name}', package='reports.data_sources.queries')
+    module = import_module(f'.{module_name}', package='src.data_sources.queries')
     QUERIES.update(getattr(module, 'QUERIES', {}))

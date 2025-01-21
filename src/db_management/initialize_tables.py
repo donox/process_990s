@@ -1,4 +1,5 @@
 import os
+import csv
 
 
 def table_exists(conn, table_name):
@@ -184,6 +185,9 @@ def initialize_tables(conn, ddl_dir):
         # "distributable_amount": os.path.join(ddl_dir, "distributable_amount.sql"),        # DONE
         # "excise_tax": os.path.join(ddl_dir, "excise_tax.sql"),
         # "expenses": os.path.join(ddl_dir, "expenses.sql"),  # DONE
+        # "grant_analysis_results": os.path.join(ddl_dir, "grant_analysis_results.sql"),      # DONE
+        # "grant_geo_score": os.path.join(ddl_dir, "grant_geo_score.sql"),      # DONE
+        # "grant_semantic_score": os.path.join(ddl_dir, "grant_semantic_score.sql"),      # DONE
         # "grants_and_contributions": os.path.join(ddl_dir, "grants_and_contributions.sql"),        # DONE
         # "investments": os.path.join(ddl_dir, "investments.sql"),        # DONE
         # "key_contacts": os.path.join(ddl_dir, "key_contacts.sql"),        # DONE
@@ -223,3 +227,70 @@ def initialize_tables(conn, ddl_dir):
                 conn.rollback()
                 print(f"Failed to create table {table_name}. Error: {e}")
 
+
+def create_zip_coordinates_table(conn):
+    with conn.cursor() as cur:
+        try:
+            # Check if table exists
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'zip_coordinates'
+                );
+            """)
+            table_exists = cur.fetchone()[0]
+
+            if not table_exists:
+                cur.execute("""
+                    CREATE TABLE zip_coordinates (
+                        zipcode VARCHAR(5) PRIMARY KEY,
+                        city VARCHAR(100),
+                        state CHAR(2),
+                        area_codes VARCHAR(100),
+                        latitude DECIMAL(9,6),
+                        longitude DECIMAL(9,6),
+                        population INTEGER
+                    );
+
+                    CREATE INDEX idx_zip_coords_state ON zip_coordinates(state);
+                    CREATE INDEX idx_zip_coords_latlong ON zip_coordinates(latitude, longitude);
+                """)
+                conn.commit()
+                print("Created zip_coordinates table")
+            else:
+                print("zip_coordinates table already exists")
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error creating zip_coordinates table: {str(e)}")
+            raise
+
+
+def load_zip_data(conn, csv_path):
+    with conn.cursor() as cur:
+        row_temp = None
+        try:
+            with open(csv_path, 'r') as f:
+                csv_reader = csv.DictReader(f)
+                for row in csv_reader:
+                    row_temp = row
+                    cur.execute("""
+                        INSERT INTO zip_coordinates 
+                        (zipcode, city, state, area_codes, latitude, longitude, population)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        row['zip'],
+                        row['primary_city'],
+                        row['state'],
+                        row['area_codes'],
+                        float(row['latitude']),
+                        float(row['longitude']),
+                        int(row['irs_estimated_population'])
+                    ))
+            conn.commit()
+            print("Loaded ZIP code data")
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error loading ZIP data: {str(e)}\n Row: {row_temp}")
+            raise

@@ -1,4 +1,4 @@
-# sample queries
+# queries used in reporting
 QUERIES = {
     # Collect data on an individual filer including contacts and grants made.
     'FilerSummary':

@@ -5,7 +5,7 @@ import os
 import psycopg2
 from docx import Document
 from pathlib import Path
-from src.reports.data_sources.queries import QUERIES
+from src.data_sources.queries import QUERIES
 
 
 class BaseReport:
