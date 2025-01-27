@@ -89,11 +89,13 @@ class BaseReport:
             conn.rollback()
             raise
 
-    def execute_query(self, query_list):
+    def execute_query(self, query_list, filters=None):
         """Execute the named queries
 
         Args:
             query_list: list of query names to execute
+            filter: a dictionary of sql expressions to add to a query before executing
+                    keys are the names of the query to be filtered
         Returns:
             Dict mapping query names to their results
         """
@@ -104,7 +106,14 @@ class BaseReport:
             with conn.cursor() as cur:
                 for query_name in query_list:
                     # Get the actual SQL from our collected queries
-                    sql = self.queries[query_name]
+                    sql = self.queries[query_name].rstrip()
+                    if filters and query_name in filters.keys():
+                        if sql.endswith('**FILTER**;'):
+                            sql = sql.replace('**FILTER**;', filters[query_name])
+                    elif not filters:
+                        sql.replace('**FILTER**;', ';')
+                    else:
+                        raise ValueError(f"Query {query_name} does not support filter, but one given")
                     sql = sql.lower()
                     if query_name in self.query_params.keys():
                         params = self.query_params[query_name]
@@ -123,23 +132,24 @@ class BaseReport:
             raise
 
     def gather_data(self):
-        # Single query
-        self.data.update(self.execute_query('sales', (self.start_date, self.end_date)))
-
-        # Multiple queries with same parameters
-        self.data.update(self.execute_query(
-            ['sales', 'customers'],
-            (self.start_date, self.end_date)
-        ))
-
-        # Multiple queries with different parameters
-        self.data.update(self.execute_query(
-            ['sales', 'inventory'],
-            {
-                'sales': (self.start_date, self.end_date),
-                'inventory': (self.warehouse_id,)
-            }
-        ))
+        # Single query      # overridden in initiating report builder
+        raise NotImplementedError
+        # self.data.update(self.execute_query('sales', (self.start_date, self.end_date)))
+        #
+        # # Multiple queries with same parameters
+        # self.data.update(self.execute_query(
+        #     ['sales', 'customers'],
+        #     (self.start_date, self.end_date)
+        # ))
+        #
+        # # Multiple queries with different parameters
+        # self.data.update(self.execute_query(
+        #     ['sales', 'inventory'],
+        #     {
+        #         'sales': (self.start_date, self.end_date),
+        #         'inventory': (self.warehouse_id,)
+        #     }
+        # ))
 
     def get_template(self):
         """Load the document template and return Document object"""

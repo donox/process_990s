@@ -66,4 +66,20 @@ class SemanticMatching:
                 print(f"Semantic analysis failure for EIN {ein}: {e}")
                 self.conn.rollback()
 
+    @staticmethod
+    def determine_similarity(db_conn, ein):
+        """Get similarity score for a foundation."""
+        query = """
+            SELECT similarity_score FROM grant_similarity_score 
+            WHERE ein = '%s';
+            """
+        try:
+            with db_conn.cursor() as cur:
+                cur.execute(query, (ein,))
+                score = cur.fetchone()[0]
+                return score
+        except Exception as e:
+            print(f"No similarity score found for foundation: {ein}")
+            return None
+
 

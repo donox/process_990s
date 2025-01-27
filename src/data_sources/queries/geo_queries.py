@@ -16,4 +16,17 @@ GEO_QUERIES = {
     JOIN 
     grantsandcontributions g on g.returnid = r.returnid
     """,
+    'PrincipalsLocations':
+        """
+        SELECT
+        f.ein, 
+        f.businessnameline1 as Foundation,
+        f.zipcode as Zip,
+        g.zipcode as KeyZip,
+        g.title as KeyTitle
+        FROM 
+            filer f
+        JOIN 
+        keycontacts g on g.EIN = f.EIN
+        """,
 }

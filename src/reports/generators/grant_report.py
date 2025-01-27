@@ -1,5 +1,9 @@
-# reports/generators/grant_report.py
-class GrantAnalysisReport(report_base.ReportBase):
+from src.reports.report_base import BaseReport
+from datetime import datetime
+from src.data_sources.queries import sql_queries as sql
+
+
+class GrantAnalysisReport(BaseReport):
     def __init__(self, search_results, report_config):
         super().__init__(report_config)
         self.search_results = search_results

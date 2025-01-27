@@ -52,7 +52,17 @@ def insert_returns(conn, data):
         cur.execute("""
             INSERT INTO return (ReturnFile, EIN, TaxYear, ReturnType, TaxPeriodBegin, TaxPeriodEnd, 
             Organization501c3ExemptPF, FMVAssetsEOY, MethodOfAccountingCash )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING returnid;
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
+            ON CONFLICT (EIN, TaxYear) 
+            DO UPDATE SET
+               ReturnFile = EXCLUDED.ReturnFile,
+               ReturnType = EXCLUDED.ReturnType,
+               TaxPeriodBegin = EXCLUDED.TaxPeriodBegin,
+               TaxPeriodEnd = EXCLUDED.TaxPeriodEnd,
+               Organization501c3ExemptPF = EXCLUDED.Organization501c3ExemptPF,
+               FMVAssetsEOY = EXCLUDED.FMVAssetsEOY,
+               MethodOfAccountingCash = EXCLUDED.MethodOfAccountingCash
+            RETURNING returnid;
         """, (
         data['return_file'], data['ein'], data['tax_year'], data['return_type'], data['tax_period_start'],
         data['tax_period_end'], data['organization501c3_exempt_pf'], data['fmv_assets_eoy'],

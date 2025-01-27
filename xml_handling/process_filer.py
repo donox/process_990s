@@ -33,38 +33,19 @@ def insert_filer(conn, data):
         data: A dictionary containing the data to insert.
     """
     with conn.cursor() as cur:
-        # Check if the EIN already exists
-        cur.execute("""
-            SELECT EIN, BusinessNameLine1, BusinessNameLine2, PhoneNum,
-                   AddressLine1, City, State, ZIPCode
-            FROM filer
-            WHERE EIN = %s;
-        """, (data['ein'],))
-
-        existing_row = cur.fetchone()
-
-        if existing_row:
-            # EIN already exists, print a message
-            print(f"Duplicate EIN found: {data['ein']}")
-
-            # Column names for comparison
-            columns = ['EIN', 'BusinessNameLine1', 'BusinessNameLine2', 'PhoneNum',
-                       'AddressLine1', 'City', 'State', 'ZIPCode']
-
-            # Compare columns and print mismatches
-            for col, existing_value, new_value in zip(columns, existing_row, [
-                data['ein'], data['business_name_line1'], data['business_name_line2'],
-                data['phone_number'], data['address_line1'], data['city'],
-                data['state'], data['zip']
-            ]):
-                if existing_value != new_value:
-                    print(f"Mismatch in column '{col}': existing value = '{existing_value}', new value = '{new_value}'")
-        else:
-            # EIN does not exist, insert the new data
             cur.execute("""
                 INSERT INTO filer (EIN, BusinessNameLine1, BusinessNameLine2, PhoneNum,
                                    AddressLine1, City, State, ZIPCode)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (EIN) 
+                DO UPDATE SET
+                   BusinessNameLine1 = EXCLUDED.BusinessNameLine1,
+                   BusinessNameLine2 = EXCLUDED.BusinessNameLine2, 
+                   PhoneNum = EXCLUDED.PhoneNum,
+                   AddressLine1 = EXCLUDED.AddressLine1,
+                   City = EXCLUDED.City,
+                   State = EXCLUDED.State,
+                   ZIPCode = EXCLUDED.ZIPCode;
             """, (data['ein'], data['business_name_line1'], data['business_name_line2'],
                   data['phone_number'], data['address_line1'], data['city'], data['state'], data['zip']))
 

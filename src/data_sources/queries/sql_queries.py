@@ -1,8 +1,7 @@
 # queries used in reporting
 QUERIES = {
     # Collect data on an individual filer including contacts and grants made.
-    'FilerSummary':
-    """
+    'FilerSummary': """
     SELECT f.businessnameline1 as Foundation,
     f,phonenum as Phone,
     f.addressline1 as Address,
@@ -52,15 +51,17 @@ QUERIES = {
 
     """,
 
-    # Grants and filers as base for searching relevant grants (returns about 1.4M grants)
-    "GrantSearch":
-    """
+    # Grants and filers as base for searching relevant grants (returns about 1.4M grants) (contains **FILTER**)
+    "GrantSearch": """
         SELECT
             * 
         FROM
-            grantsbyfiler;
+            grantsbyfiler
+        **FILTER**;            
     """,
-    "View2": """
+
+    # Returns list of filers and amount they donate in the most recent year  (contains **FILTER**)
+    "DistributableAmount": """
         SELECT
             f.EIN AS FilerID,
             r.taxyear AS TaxYear,
@@ -72,6 +73,18 @@ QUERIES = {
             return r ON f.EIN = r.EIN
         JOIN
             distributableamount d ON r.ReturnId = d.ReturnId
-            limit 10;
-        """
+            **FILTER**;        
+        """,
+
+    # Get list of candidate foundations satisfying a filter   (contains **FILTER**)
+    "SelectCandidates": """
+            SELECT
+            f.state AS State,
+            f.ZIPCode AS FilerZIP,
+           g.*
+        FROM
+            filer f
+        JOIN
+            grant_analysis_results g ON f.EIN = g.EIN
+            **FILTER**;   """
 }

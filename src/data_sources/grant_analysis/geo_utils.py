@@ -11,8 +11,9 @@ class ZipDistance:
 
     def get_zip_coordinates(self, zipcode: str) -> Tuple[float, float]:
         """Get lat/long for a zipcode from database"""
+        zc = zipcode.lstrip('0')
         try:
-            result = self.known_coordinates[zipcode]
+            result = self.known_coordinates[zc]
             return result
         except KeyError:
             pass
@@ -21,9 +22,15 @@ class ZipDistance:
                 SELECT latitude, longitude 
                 FROM zip_coordinates 
                 WHERE zipcode = %s
-            """, (zipcode,))
+            """, (zc,))
             result = cur.fetchone()
-            self.known_coordinates[zipcode] = result
+            self.known_coordinates[zc] = result
+            if not result:
+                print(f"ZIP Not Found: {zipcode} in get_zip_coordinates")
+                cur.execute("""INSERT INTO unknown_zipcodes (zipcode)
+                    VALUES (%s)
+                    ON CONFLICT DO NOTHING;""", (zipcode,))
+                self.conn.commit()
             return result if result else None
 
     def calculate_distance(self, zip1: str, zip2: str) -> float:
@@ -48,7 +55,6 @@ class ZipDistance:
         a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
         c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return 3959 * c  # Earth radius in miles
-
 
     def find_mean(self, zipcodes: List[str]) -> Tuple[Optional[Tuple[float, float]], Optional[float]]:
         """
