@@ -1,32 +1,33 @@
+import os
 import yaml
 import logging
-from datetime import datetime
-import os
+import pandas as pd
+import xlsxwriter
 import psycopg2
-from docx import Document
+from datetime import datetime
 from pathlib import Path
 from src.data_sources.queries import QUERIES
+from src.reports.report_base import BaseReport  # Reusing query execution logic
 
 
-class BaseReport:
-    def __init__(self, report_name, template_name, queries, query_params):
+class BaseSpreadsheet:
+    def __init__(self, report_name, queries, query_params):
         """
         Args:
-            report_name: name of the report
-            template_name: name of template file
+            report_name: name of the spreadsheet report
             queries: list of query names to execute
             query_params: dict mapping query names to their parameters
         """
         self.report_name = report_name
-        self.template_name = template_name
-        self.logger = None
         self.queries_to_run = queries
         self.query_params = query_params
         self.queries = QUERIES
+        self.logger = None
         self.config = self._load_config()
         self.setup_logging()
         self.db_conn = None
-        self.data = {}
+        self.data = None
+        self.dataframes = None
 
     @staticmethod
     def _load_config():
@@ -56,40 +57,6 @@ class BaseReport:
                 raise
         return self.db_conn
 
-    def check_database(self):
-        return
-        conn = self.get_db_connection()
-
-        try:
-            with conn.cursor() as cur:
-                # Check which database we're connected to
-                cur.execute("SELECT current_database();")
-                db = cur.fetchone()[0]
-                print(f"Connected to database: {db}")
-
-                # List ALL tables in ALL schemas
-                cur.execute("""
-                    SELECT schemaname, tablename 
-                    FROM pg_tables 
-                    WHERE schemaname NOT IN ('pg_catalog', 'information_schema');
-                """)
-                tables = cur.fetchall()
-                print(f"All available tables: {tables}")
-
-                # Check schemas
-                cur.execute("""
-                    SELECT nspname 
-                    FROM pg_namespace 
-                    WHERE nspname NOT IN ('pg_catalog', 'information_schema');
-                """)
-                schemas = cur.fetchall()
-                print(f"Available schemas: {schemas}")
-
-        except Exception as e:
-            print(f"Error checking database: {e}")
-            conn.rollback()
-            raise
-
     def execute_query(self, query_list, filters=None):
         """Execute the named queries
 
@@ -101,6 +68,7 @@ class BaseReport:
             Dict mapping query names to their results
         """
         results = {}
+        columns = {}
         conn = self.get_db_connection()
 
         try:
@@ -124,83 +92,21 @@ class BaseReport:
                     else:
                         cur.execute(sql)
                     results[query_name] = cur.fetchall()
-
+                    columns[query_name] = [desc[0] for desc in cur.description]
+            self.data = results
+            self.dataframes = {query: pd.DataFrame(result, columns=columns[query]) for
+                               query, result in self.data.items()}
             return results
 
         except Exception as e:
             self.logger.error(f"Query execution failed: {e}")
             conn.rollback()
             raise
-
-    def gather_data(self):
-        # Single query      # overridden in initiating report builder
-        raise NotImplementedError
-        # self.data.update(self.execute_query('sales', (self.start_date, self.end_date)))
-        #
-        # # Multiple queries with same parameters
-        # self.data.update(self.execute_query(
-        #     ['sales', 'customers'],
-        #     (self.start_date, self.end_date)
-        # ))
-        #
-        # # Multiple queries with different parameters
-        # self.data.update(self.execute_query(
-        #     ['sales', 'inventory'],
-        #     {
-        #         'sales': (self.start_date, self.end_date),
-        #         'inventory': (self.warehouse_id,)
-        #     }
-        # ))
-
-    def get_template(self):
-        """Load the document template and return Document object"""
-        relative_path = os.path.join(
-            self.config['paths']['templates'],
-            f"{self.template_name}.docx"
-        )
-        template_path = os.path.join(self.reports_dir, relative_path)
-
-        try:
-            doc = Document(template_path)
-            return doc
-        except Exception as e:
-            self.logger.error(f"Template load failed: {e}")
-            raise
-
-    def save_report(self, doc):
-        """Save with standardized naming and path"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-        filename = f"{self.report_name}_{timestamp}.docx"
-
-        # Create dated archive directory if needed
-        archive_dir = os.path.join(
-            self.config['paths']['output_dir'],
-            datetime.now().strftime('%Y-%m')
-        )
-        archive_dir = os.path.join(self.reports_dir, archive_dir)
-        os.makedirs(archive_dir, exist_ok=True)
-
-        full_path = os.path.join(archive_dir, filename)
-        try:
-            doc.save(full_path)
-            self.logger.info(f"Report saved: {full_path}")
-
-            # Also save to 'current' folder
-            current_path = os.path.join(
-                self.config['paths']['output_dir'],
-                'current',
-                f"{self.report_name}_latest.docx"
-            )
-            current_path = os.path.join(self.reports_dir, current_path)
-            doc.save(current_path)
-        except Exception as e:
-            self.logger.error(f"Save failed: {e}")
-            raise
-
-    def cleanup(self):
-        """Clean up resources"""
-        if self.db_conn:
-            self.db_conn.close()
+    # def execute_query(self):
+    #     """Execute queries and store results in a Pandas DataFrame"""
+    #     report = BaseReport(self.report_name, None, self.queries_to_run, self.query_params)
+    #     self.data = self.execute_query(self.queries_to_run)
+    #     self.dataframes = {query: pd.DataFrame(result) for query, result in self.data.items()}
 
     def generate(self):
         """Main execution method"""
@@ -230,3 +136,54 @@ class BaseReport:
     def fill_report(self, doc):
         """Override to fill the template"""
         raise NotImplementedError
+
+    def _get_archive_path(self, file_name, file_type):
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        fn = f'{file_name}_{timestamp}'
+        archive_dir = os.path.join(
+            self.config['paths']['output_dir'],
+            datetime.now().strftime('%Y-%m')
+        )
+        archive_dir = os.path.join(self.reports_dir, archive_dir)
+        os.makedirs(archive_dir, exist_ok=True)
+
+        full_path = os.path.join(archive_dir, f"{fn}.{file_type}")
+        return full_path
+
+    def _get_current_path(self, file_name, file_type):
+        current_path = os.path.join(
+            self.config['paths']['output_dir'],
+            'current',
+            f"{file_name}_latest.{file_type}"
+        )
+        current_path = os.path.join(self.reports_dir, current_path)
+        return current_path
+
+    def save_to_csv(self, output_dir="output"):
+        """Save DataFrames to CSV files"""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        os.makedirs(output_dir, exist_ok=True)
+
+        for query_name, df in self.dataframes.items():
+            fn = f"{self.report_name}_{query_name}".lower()
+            archive_path = self._get_archive_path(fn, 'csv')
+            df.to_csv(archive_path, index=False)
+            current_path = self._get_current_path(fn, 'csv')
+            df.to_csv(current_path, index=False)
+            print(f"Saved CSV: {current_path}")
+
+    def save_to_excel(self, output_dir="output"):
+        """Save DataFrames to an Excel file with multiple sheets"""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        os.makedirs(output_dir, exist_ok=True)
+
+        for query_name, df in self.dataframes.items():
+            fn = f"{self.report_name}_{query_name}".lower()
+            archive_path = self._get_archive_path(fn, 'xlsx')
+            with pd.ExcelWriter(archive_path, engine='xlsxwriter') as writer:
+                df.to_excel(writer, sheet_name=query_name, index=False)
+            current_path = self._get_current_path(fn, 'xlsx')
+            with pd.ExcelWriter(current_path, engine='xlsxwriter') as writer:
+                df.to_excel(writer, sheet_name=query_name, index=False)
+
+        print(f"Saved Excel: {current_path}")

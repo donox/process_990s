@@ -5,6 +5,7 @@ from db_management.initialize_tables import initialize_tables, create_zip_coordi
 from xml_handling.xml_processor import process_directory
 from reports.generators import single_filer as sf
 from reports.generators import list_candidates as lc
+from spreadsheets.generators import list_candidates_spreadsheet as lcs
 from data_sources.grant_analysis.grant_distribution_analysis import BaseGrantDistributionAnalyzer
 from data_sources.grant_analysis.semantic_matching_analysis import SemanticMatching
 from db_management.transformers.determine_distances import DetermineDistances
@@ -22,7 +23,11 @@ include_dirs = ['2023', '2024']
 exclude_dirs = ['zip_files', 'raw', 'result', 'summary', 'data', 'logs']
 zip_code_list = '/home/don/Documents/Wonders/dev990/zip_code_database.csv'
 
-# In-memory list of known elements
+# In-memory list of known unhandled elements
+# An unhandled element is a xml element (xpath) that is not processed by the system
+# It consists of the element name as appears in the xml and a file where it was encountered.
+# It is intended to provide some insight into elements that might be useful and considered for
+# adding to the DDL.
 known_elements = []
 
 
@@ -65,13 +70,14 @@ def main():
 
     # Connect to the database
     conn = connect_to_db(config)
-    setup = False
-    geo = False
-    keys = False
-    semantic = False
-    score = False
-    score_all = False
-    reports = True
+    setup = False           # Build database and process xml files.
+    geo = False             # Analyze locations of foundations, and grants
+    keys = False            # Analyze locations of key staff
+    semantic = False        # Determine semantic similarity for foundations to WW
+    score = False           # Build dict summarizing scoring for a specific ein
+    score_all = False       # Determine score for all foundations
+    reports = False         # Create reports in docx format
+    spreadsheets = True     # Create spreadsheets in xls or csv format
     try:
         if setup:
             # WORK ON DB
@@ -114,8 +120,8 @@ def main():
         if reports:
             # BUILD REPORTS
             # Possible reports:  ['single_filer', 'foundation_list']
-            reports_to_build = ['foundation_list']
-            filer_ein = 274133050  # Gallogly Foundation
+            reports_to_build = ['foundation_list']   # List of reports to be generated in this run
+            filer_ein = 274133050  # Gallogly Foundation            # ein of filer for filer specific reports
             start_date = str(datetime.date(2023, 1, 1))
             end_date = str(datetime.date(2024, 5, 1))
             other_data = {"start_date": start_date,
@@ -128,19 +134,36 @@ def main():
                 params = {"Contacts": (str(filer_ein)),
                           "Grants": (str(filer_ein)),
                           "FilerSummary": str(filer_ein)}
-                report = sf.SingleFiler(reports_dir, "generated_report", "filer_report",
+                spreadsheet = sf.SingleFiler(reports_dir, "generated_report", "filer_report",
                                         queries=queries, params=params, other_data=other_data)
-                result = report.generate()
+                result = spreadsheet.generate()
                 print(f"REPORT single_filer: {result}, Done")
             if 'foundation_list' in reports_to_build:
                 queries = ['SelectCandidates']
                 params = {"Contacts": (str(filer_ein)),
                           "Grants": (str(filer_ein)),
                           "FilerSummary": str(filer_ein)}
-                report = lc.ListCandidates(reports_dir, "generated_report", "candidate_list",
+                spreadsheet = lc.ListCandidates(reports_dir, "generated_report", "candidate_list",
                                            queries=queries, params=params, other_data=other_data)
-                result = report.generate()
+                result = spreadsheet.generate()
                 print(f"REPORT candidates_list: {result}, Done")
+
+        if spreadsheets:
+            spreadsheets_to_build = ['foundation_list']
+            start_date = str(datetime.date(2023, 1, 1))
+            end_date = str(datetime.date(2024, 5, 1))
+            other_data = {"start_date": start_date,
+                          "end_date": end_date,
+                          "filters": {'SelectCandidates': "order by g.distance_to_target asc limit 100;",
+                                      },
+                          }
+            if 'foundation_list' in spreadsheets_to_build:
+                queries = ['SelectCandidates']
+                params = {}
+                spreadsheet = lcs.ListCandidatesSpreadsheet(reports_dir, "generated_report",
+                                           queries=queries, query_params=params, other_data=other_data)
+                result = spreadsheet.generate(output_format="xlsx")
+                print(f"SPREADSHHET candidates_list: {result}, Done")
 
         # Additional logic for processing XML files, etc.
     except Exception as e:

@@ -9,17 +9,21 @@ class ListCandidates(BaseReport):
      Args:
          reports_dir: file system directory for managing reports
          report_name: name of the report
-         template_name: name of template file
+         report_template: name of template file
          queries: list of query names to execute
          query_params: dict mapping query names to their parameters
-         other_data: dict of data directly for the report writer
+         other_data: dict of data directly for the report writer or filter for query.
+                To filter a query, the input query will complete with '**FILTER**;',
+                other_data will contain a key of 'filters' which is itself a dict whose
+                keys are query names and whose values are a string that will replace
+                the '**FILTER**;' in the query whose name is the key.
      """
 
-    def __init__(self, reports_dir, report_name, report_template, queries=None, params=None, other_data=None):
+    def __init__(self, reports_dir, report_name, report_template, queries=None, query_params=None, other_data=None):
         self.queries = queries or sql
         self.reports_dir = reports_dir
         self.other_data = other_data
-        super().__init__(report_name, report_template, self.queries, params)
+        super().__init__(report_name, report_template, self.queries, query_params)
 
     def gather_data(self):
         # Need to pass filters which should be an entry in other_data whose value is a dictionary of filters
