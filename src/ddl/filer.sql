@@ -16,7 +16,7 @@ From XML:
     </USAddress>
 */
 CREATE TABLE Filer (
-    EIN VARCHAR(9) PRIMARY KEY,
+    EIN VARCHAR(9) NOT NULL PRIMARY KEY,
     BusinessNameLine1 VARCHAR(255),
     BusinessNameLine2 VARCHAR(255),
     BusinessNameControl VARCHAR(50),

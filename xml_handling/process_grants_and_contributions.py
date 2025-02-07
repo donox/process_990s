@@ -83,12 +83,21 @@ def insert_grants_and_contributions(conn, return_id, data):
     """
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            query = """
                 INSERT INTO grantsandcontributions (returnid, recipientname, addressline1, city, state, zipcode,
                  recipientrelationship, purpose, amount)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-            """, (return_id, data['recipient_name'], data['recipient_address'], data['recipient_city'],
+            """
+            params = (return_id, data['recipient_name'], data['recipient_address'], data['recipient_city'],
                   data['recipient_state'], data['recipient_zip'], data['recipient_relationship'], data['purpose'],
-                  data['amount']))
+                  data['amount'])
+            actual_query = cur.mogrify(query, params).decode('utf-8')
+            cur.execute(query, params)
+            if cur.statusmessage != "INSERT 0 1":
+                print(f"Unexpected status in process_grants_and_contributions: {cur.statusmessage}")
+                conn.rollback()
+            else:
+                conn.commit()
     except Exception as e:
         print(f"Error on insert to grants_and_contributions: {e}")
+        conn.rollback()

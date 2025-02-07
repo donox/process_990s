@@ -48,24 +48,28 @@ def insert_returns(conn, data):
     """
     Insert data into the `returns` table and return the generated ID.
     """
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO return (ReturnFile, EIN, TaxYear, ReturnType, TaxPeriodBegin, TaxPeriodEnd, 
-            Organization501c3ExemptPF, FMVAssetsEOY, MethodOfAccountingCash )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
-            ON CONFLICT (EIN, TaxYear) 
-            DO UPDATE SET
-               ReturnFile = EXCLUDED.ReturnFile,
-               ReturnType = EXCLUDED.ReturnType,
-               TaxPeriodBegin = EXCLUDED.TaxPeriodBegin,
-               TaxPeriodEnd = EXCLUDED.TaxPeriodEnd,
-               Organization501c3ExemptPF = EXCLUDED.Organization501c3ExemptPF,
-               FMVAssetsEOY = EXCLUDED.FMVAssetsEOY,
-               MethodOfAccountingCash = EXCLUDED.MethodOfAccountingCash
-            RETURNING returnid;
-        """, (
-        data['return_file'], data['ein'], data['tax_year'], data['return_type'], data['tax_period_start'],
-        data['tax_period_end'], data['organization501c3_exempt_pf'], data['fmv_assets_eoy'],
-        data['method_of_accounting_cash']))
-        return_id = cur.fetchone()[0]
-        return return_id
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO return (ReturnFile, EIN, TaxYear, ReturnType, TaxPeriodBegin, TaxPeriodEnd, 
+                Organization501c3ExemptPF, FMVAssetsEOY, MethodOfAccountingCash )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                ON CONFLICT (EIN, TaxYear) 
+                DO UPDATE SET
+                   ReturnFile = EXCLUDED.ReturnFile,
+                   ReturnType = EXCLUDED.ReturnType,
+                   TaxPeriodBegin = EXCLUDED.TaxPeriodBegin,
+                   TaxPeriodEnd = EXCLUDED.TaxPeriodEnd,
+                   Organization501c3ExemptPF = EXCLUDED.Organization501c3ExemptPF,
+                   FMVAssetsEOY = EXCLUDED.FMVAssetsEOY,
+                   MethodOfAccountingCash = EXCLUDED.MethodOfAccountingCash
+                RETURNING returnid;
+            """, (
+            data['return_file'], data['ein'], data['tax_year'], data['return_type'], data['tax_period_start'],
+            data['tax_period_end'], data['organization501c3_exempt_pf'], data['fmv_assets_eoy'],
+            data['method_of_accounting_cash']))
+            return_id = cur.fetchone()[0]
+            return return_id
+    except Exception as e:
+        print (f"Except in insert_returns: {e}")
+        foo = 3

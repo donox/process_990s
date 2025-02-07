@@ -67,7 +67,8 @@ def insert_supplementary_info(conn, return_id, data):
                     applicationrestrictions, applicationemail,
                     totalgrantspaidduringyear, totalgrantsapprovedfuture,
                     onlypreselectedcontributions
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (returnid) DO NOTHING ;
             """, (
                 return_id,
                 data['form_info'],
@@ -78,5 +79,11 @@ def insert_supplementary_info(conn, return_id, data):
                 float(data['total_future']) if data['total_future'] else None,
                 data['preselected']
             ))
+            if cur.statusmessage != "INSERT 0 1":
+                print(f"Unexpected status in supplementary_info: {cur.statusmessage}")
+                conn.rollback()
+            else:
+                conn.commit()
     except Exception as e:
         print(f"Error on insert to supplementaryinformation: {e}")
+        conn.rollback()

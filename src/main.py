@@ -21,6 +21,8 @@ xml_dir = '/home/don/Documents/Wonders/dev990'
 reports_dir = '/home/don/Documents/Wonders/reports'
 include_dirs = ['2023', '2024']
 exclude_dirs = ['zip_files', 'raw', 'result', 'summary', 'data', 'logs']
+# approximately 1% of eins are in places where the zipcode DB has null for long/lat
+# and represents 289 or 1/4M grants.
 zip_code_list = '/home/don/Documents/Wonders/dev990/zip_code_database.csv'
 
 # In-memory list of known unhandled elements
@@ -70,26 +72,35 @@ def main():
 
     # Connect to the database
     conn = connect_to_db(config)
-    setup = False           # Build database and process xml files.
+    setup = True           # Build database and process xml files.
+    setup_initialize_tables = False     # Set to true to rebuild tables (alter mode isn't working)
     geo = False             # Analyze locations of foundations, and grants
     keys = False            # Analyze locations of key staff
     semantic = False        # Determine semantic similarity for foundations to WW
     score = False           # Build dict summarizing scoring for a specific ein
     score_all = False       # Determine score for all foundations
     reports = False         # Create reports in docx format
-    spreadsheets = True     # Create spreadsheets in xls or csv format
+    spreadsheets = False     # Create spreadsheets in xls or csv format
     try:
+        # NOTE:  setup assumes that all files have been downloaded and expanded into data structure.
         if setup:
             # WORK ON DB
+
+            # When creating the DB:                                                         # !!!!!!!!!!!!!!!!!!!!
+            #   ALTER DATABASE your_database_name OWNER TO don;
+            #   GRANT ALL PRIVILEGES ON DATABASE your_database_name TO don;
+
             # Initialize or modify tables
-            print("Initializing or modifying database tables...")
-            # initialize_tables(conn, DDL_DIR)    # Fails on any table modification
+            # print("Initializing or modifying database tables...")
+            if setup_initialize_tables:
+                initialize_tables(conn, DDL_DIR)    # Fails on any table modification
 
             # create and load zip-code table.  Drop existing table before running.
-            # create_zip_coordinates_table(conn)
-            # load_zip_data(conn, zip_code_list)
+            # create_zip_coordinates_table(conn)                                    #  !!!!!!! uncomment zip functions
+            # load_zip_data(conn, zip_code_list)   # fails if directory already exists
 
             process_directory(xml_dir, conn)
+
         if geo:
             geo_processor = BaseGrantDistributionAnalyzer(conn)
             geo_processor.execute_analysis()
@@ -149,7 +160,7 @@ def main():
                 print(f"REPORT candidates_list: {result}, Done")
 
         if spreadsheets:
-            spreadsheets_to_build = ['foundation_list']
+            spreadsheets_to_build = ['foundation_list']         # see sql_queries
             start_date = str(datetime.date(2023, 1, 1))
             end_date = str(datetime.date(2024, 5, 1))
             other_data = {"start_date": start_date,
@@ -163,7 +174,10 @@ def main():
                 spreadsheet = lcs.ListCandidatesSpreadsheet(reports_dir, "generated_report",
                                            queries=queries, query_params=params, other_data=other_data)
                 result = spreadsheet.generate(output_format="xlsx")
-                print(f"SPREADSHHET candidates_list: {result}, Done")
+                print(f"SPREADSHEET candidates_list: {result}, Done")
+
+            # if "xx" in spreadsheets_to_build:
+            #     -handler for this spreadsheet
 
         # Additional logic for processing XML files, etc.
     except Exception as e:

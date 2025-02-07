@@ -52,21 +52,26 @@ def parse_and_insert(file_path, conn, modules):
         # return and return generates the foreign key needed by all other handlers.
         # Extract and insert filer
         filer_data = extract_filer(root)
-        # if filer_data:
-            # insert_filer(conn, filer_data)
+        if filer_data:
+            insert_filer(conn, filer_data)
 
         # Extract and insert returns
         return_data = extract_returns(root, file_path)
         if return_data:
-            # return_id = insert_returns(conn, return_data)
+            return_id = insert_returns(conn, return_data)
             try:
                 with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT returnid from return
-                         WHERE returnfile = %s;""", ((return_data["return_file"],)))
+                    query = """
+                            SELECT returnid from return
+                             WHERE returnfile = %s;"""
+                    params = (return_data["return_file"],)
+                    actual_query = cur.mogrify(query, params).decode('utf-8')
+
+                    cur.execute(query, params)
                     return_id = cur.fetchone()[0]
             except Exception as e:
                 print(f"Error on insert to retrieval of return id in file: {file_path}\n {e}")
+                foo = 3
                 return
 
         # Process each module
@@ -78,7 +83,7 @@ def parse_and_insert(file_path, conn, modules):
 
         # Commit the transaction after processing all modules
         conn.commit()
-        print(f"Successfully processed file: {file_path}")
+        # print(f"Successfully processed file: {file_path}")        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     except Exception as e:
         conn.rollback()
@@ -168,8 +173,8 @@ def find_process_modules(directory="."):
         if module_pattern.match(file_name):
             # Remove the .py extension
             module_name = os.path.splitext(file_name)[0]
-            if module_name not in ["process_key_contacts",]:
-                continue
+            # if module_name not in ["process_key_contacts",]:
+            #     continue
             modules.append(module_name)
 
     return modules

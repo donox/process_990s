@@ -62,8 +62,8 @@ class BaseSpreadsheet:
 
         Args:
             query_list: list of query names to execute
-            filter: a dictionary of sql expressions to add to a query before executing
-                    keys are the names of the query to be filtered
+            filter: a dictionary of sql expressions to add to a query before executing.
+                    Keys are the names of the query to be filtered
         Returns:
             Dict mapping query names to their results
         """
@@ -92,7 +92,7 @@ class BaseSpreadsheet:
                     else:
                         cur.execute(sql)
                     results[query_name] = cur.fetchall()
-                    columns[query_name] = [desc[0] for desc in cur.description]
+                    columns[query_name] = [desc[0] for desc in cur.description]     # Get column names
             self.data = results
             self.dataframes = {query: pd.DataFrame(result, columns=columns[query]) for
                                query, result in self.data.items()}

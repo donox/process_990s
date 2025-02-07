@@ -88,6 +88,7 @@ def insert_key_contacts(conn, data, ein):
                     ))
                 except psycopg2.IntegrityError as e:
                     # Skip duplicates silently
+                    print(f"Found dupe key contact: {contact['person_name']}, {ein}")   # !!!!!!!!  DEBUG
                     conn.rollback()
                     continue
     except Exception as e:

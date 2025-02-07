@@ -13,7 +13,7 @@ And from IRS990PF:
 */
 CREATE TABLE Return (
     ReturnId SERIAL PRIMARY KEY,
-    EIN VARCHAR(9),
+    EIN VARCHAR(9) NOT NULL,
     ReturnFile VARCHAR(30),
     TaxPeriodEnd DATE,
     TaxPeriodBegin DATE,
@@ -22,5 +22,6 @@ CREATE TABLE Return (
     Organization501c3ExemptPF BOOLEAN,
     FMVAssetsEOY DECIMAL(15,2),
     MethodOfAccountingCash BOOLEAN,
-    FOREIGN KEY (EIN) REFERENCES Filer(EIN)
+    FOREIGN KEY (EIN) REFERENCES Filer(EIN),
+    UNIQUE (EIN, TaxYear)
 );
