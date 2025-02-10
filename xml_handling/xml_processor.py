@@ -1,14 +1,10 @@
-import os
-from datetime import datetime
-import psycopg2
 import importlib
 import re
 import glob
-import xml.etree.ElementTree as ET
+import traceback
 from xml_handling.process_return import *
 from xml_handling.process_filer import *
-from xml_handling.process_qualifyingdistributions import *
-from xml_handling.process_investments import *
+from src.db_management.manage_transactions import DBTransaction
 
 
 def remove_namespaces_and_attributes(root):
@@ -30,14 +26,14 @@ def remove_namespaces_and_attributes(root):
     return root
 
 
-def parse_and_insert(file_path, conn, modules):
+def parse_and_insert(file_path, config, modules):
     """
     Parse an XML file and insert data into the database, delegating
     table-specific operations to provided handler modules.
 
     Args:
         file_path (str): Path to the XML file.
-        conn: psycopg2 connection object.
+        config: configuration which is needed to create DBTransaction
         modules (list): List of handler modules for specific tables.
 
     Returns:
@@ -47,57 +43,59 @@ def parse_and_insert(file_path, conn, modules):
         tree = ET.parse(file_path)
         root = tree.getroot()
         root = remove_namespaces_and_attributes(root)
+        mg_trans = DBTransaction(config)
 
         # filer and return ddl requires non-standard handling as filer creates the foreign key needed by
         # return and return generates the foreign key needed by all other handlers.
         # Extract and insert filer
         filer_data = extract_filer(root)
         if filer_data:
-            insert_filer(conn, filer_data)
+            insert_filer(mg_trans, filer_data)
 
         # Extract and insert returns
         return_data = extract_returns(root, file_path)
         if return_data:
-            return_id = insert_returns(conn, return_data)
             try:
-                with conn.cursor() as cur:
-                    query = """
-                            SELECT returnid from return
-                             WHERE returnfile = %s;"""
-                    params = (return_data["return_file"],)
-                    actual_query = cur.mogrify(query, params).decode('utf-8')
-
-                    cur.execute(query, params)
-                    return_id = cur.fetchone()[0]
+                return_id = insert_returns(mg_trans, return_data)
+                # IS THERE A CASE WHERE THIS IS NEEDED?
+                # query = """
+                #         SELECT returnid from return
+                #          WHERE returnfile = %s;"""
+                # params = (return_data["return_file"],)
+                # result = mg_trans.execute(query, params=params)
+                # if result:
+                #     return_id = result[0]
+                # else:
+                #     raise ValueError("No result when seeking returnid")
             except Exception as e:
                 print(f"Error on insert to retrieval of return id in file: {file_path}\n {e}")
-                foo = 3
+                mg_trans.rollback()
                 return
 
         # Process each module
         for module in modules:
             # Call the module's handler function
-            handler_result = module.handler(conn, return_id, root, file_path)
+            handler_result = module.handler(mg_trans, return_id, root, file_path)
             if not handler_result:
-                print(f"Handler for module {module.__name__} failed.")
+                raise ValueError(f"Handler for module {module.__name__} failed.")
 
         # Commit the transaction after processing all modules
-        conn.commit()
+        mg_trans.commit()
         # print(f"Successfully processed file: {file_path}")        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     except Exception as e:
-        conn.rollback()
-        print(f"Error processing file {file_path}: {e}")
+        mg_trans.rollback()
+        print(f"Error processing file {file_path}: {e}\n {traceback.format_exc()}")
 
 
-def process_directory(directory, conn):
+def process_directory(directory, config):
     """
     Process XML files in a directory structure matching the pattern:
     ./*year/expanded_zip_files/*/processed/*/*.xml
 
     Args:
         directory (str): Base directory to start the search.
-        conn: psycopg2 connection object.
+        config: configuration needed to create db connection
 
     Returns:
         None
@@ -114,6 +112,7 @@ def process_directory(directory, conn):
     file_count = 0
     # skip_count = 13
     # Iterate through each pattern and process matching files
+    # All tables except filer execute in single transaction defined by mg_trans object
     for pattern in patterns:
         try:
             for file_path in glob.glob(pattern, recursive=True):
@@ -123,7 +122,7 @@ def process_directory(directory, conn):
                     #     skip_count -= 1
                     #     continue
                     # Process the file
-                    parse_and_insert(file_path, conn, modules)
+                    parse_and_insert(file_path, config, modules)
                     file_count += 1                             # LIMIT ITERATION
                     if file_count > 1000000:
                         return
@@ -145,7 +144,7 @@ def load_modules():
     for module_name in module_names:
         if module_name not in ["process_return", "process_filer"]:
             module_file = os.path.join(module_path, f"{module_name}.py")
-            if os.path.exists(module_file):
+            if os.path.exists(module_file) and False:       # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 spec = importlib.util.spec_from_file_location(module_name, module_file)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)

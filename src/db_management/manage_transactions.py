@@ -1,83 +1,108 @@
 import psycopg2
-from typing import List, Any, Optional
 from datetime import datetime
-
+from typing import Optional, List
+from src.db_management.manage_config import connect_to_db
 
 class DBTransaction:
-    """Manage DB transactions in a single place."""
-    def __init__(self, conn):
-        self.conn = conn
-        self.cur = conn.cursor()
+    def __init__(self, config):
+        self.config = config
+        self.conn = connect_to_db(self.config)
+        self.cur = None
         self.transaction_log = []
+        self.in_transaction = False  # Track if a transaction is active
 
     def execute(self, query: str, params: tuple = None) -> Optional[List[tuple]]:
-        """Execute a query with parameters, log it, and handle any errors"""
+        """Execute a query within the current transaction"""
         try:
-            # Log the operation with timestamp
+            if not self.cur:
+                self.cur = self.conn.cursor()
+                if not self.in_transaction:  # Start transaction if not already started
+                    self.cur.execute("BEGIN")
+                    self.in_transaction = True
+                    self.transaction_log.append({
+                        'timestamp': datetime.now(),
+                        'operation': 'BEGIN',
+                        'status': 'success'
+                    })
             actual_query = self.cur.mogrify(query, params).decode('utf-8')
             self.transaction_log.append({
                 'timestamp': datetime.now(),
                 'query': actual_query,
                 'status': 'pending'
             })
-
-            # Execute the query
             self.cur.execute(query, params)
-
-            # Update log with success
-            self.transaction_log[-1]['status'] = 'success'
-            self.transaction_log[-1]['rowcount'] = self.cur.rowcount
-            self.transaction_log[-1]['statusmessage'] = self.cur.statusmessage
-
-            # Return results if it's a SELECT
+            self.transaction_log[-1].update({
+                'status': 'success',
+                'rowcount': self.cur.rowcount,
+                'statusmessage': self.cur.statusmessage
+            })
             if query.strip().upper().startswith('SELECT'):
                 return self.cur.fetchall()
-            return None
-
+            if query.upper().find('RETURNING') != -1:
+                return self.cur.fetchone()
+            return True
         except Exception as e:
-            # Update log with failure
-            self.transaction_log[-1]['status'] = 'failed'
-            self.transaction_log[-1]['error'] = str(e)
-            raise
+            self.transaction_log[-1].update({
+                'status': 'failed',
+                'error': str(e)
+            })
+            raise e
+
+    def execute_independent(self, query: str, params: tuple = None):
+        """Execute a single operation in its own transaction with its own connection"""
+        with connect_to_db(self.config) as independent_conn:
+            with independent_conn.cursor() as independent_cur:
+                try:
+                    independent_cur.execute(query, params)
+                    result = independent_cur.fetchall() if independent_cur.description else None
+                    independent_conn.commit()
+                    return result
+                except Exception as e:
+                    independent_conn.rollback()
+                    raise e
 
     def commit(self):
-        """Commit the transaction"""
         try:
-            self.conn.commit()
-            self.transaction_log.append({
-                'timestamp': datetime.now(),
-                'operation': 'COMMIT',
-                'status': 'success'
-            })
+            if self.cur: #check cursor exist before attempting commit
+                self.conn.commit()
+                self.transaction_log.append({
+                    'timestamp': datetime.now(),
+                    'operation': 'COMMIT',
+                    'status': 'success'
+                })
+                self.cur.close()  # close cursor on commit
+            self.cur = None  # Reset the cursor
+            self.in_transaction = False
         except Exception as e:
             self.transaction_log.append({
-                'timestamp': datetime.now(),
+               'timestamp': datetime.now(),
                 'operation': 'COMMIT',
                 'status': 'failed',
                 'error': str(e)
             })
-            raise
-
+            raise e
     def rollback(self):
-        """Rollback the transaction"""
         try:
-            self.conn.rollback()
-            self.transaction_log.append({
-                'timestamp': datetime.now(),
-                'operation': 'ROLLBACK',
-                'status': 'success'
-            })
+            if self.cur: #check cursor exist before attempting rollback
+                self.conn.rollback()
+                self.transaction_log.append({
+                    'timestamp': datetime.now(),
+                    'operation': 'ROLLBACK',
+                    'status': 'success'
+                })
+                self.cur.close() #close cursor on rollback
+            self.cur = None  # Reset the cursor
+            self.in_transaction = False
         except Exception as e:
             self.transaction_log.append({
-                'timestamp': datetime.now(),
+               'timestamp': datetime.now(),
                 'operation': 'ROLLBACK',
                 'status': 'failed',
                 'error': str(e)
             })
-            raise
+            raise e
 
     def print_log(self):
-        """Print the transaction log"""
         for entry in self.transaction_log:
             print(f"\nTimestamp: {entry['timestamp']}")
             if 'query' in entry:
@@ -93,10 +118,24 @@ class DBTransaction:
                 print(f"Error: {entry['error']}")
 
     def __enter__(self):
+        self.cur = self.conn.cursor()
+        if not self.in_transaction:  # Start transaction if not already started
+            self.cur.execute("BEGIN")
+            self.in_transaction = True
+            self.transaction_log.append({
+                'timestamp': datetime.now(),
+                'operation': 'BEGIN',
+                'status': 'success'
+            })
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Ensure proper cleanup when used in 'with' statement"""
         if exc_type is not None:
             self.rollback()
-        self.cur.close()
+        else:
+            self.commit()
+        if self.cur:
+            self.cur.close()
+        self.cur = None
+        self.in_transaction = False

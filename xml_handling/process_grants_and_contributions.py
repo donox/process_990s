@@ -1,15 +1,14 @@
-import psycopg2
 import xml.etree.ElementTree as ET
 from src.main import add_unhandled
 
 
-def handler(conn, return_id, root, file_path):
+def handler(mg_trans, return_id, root, file_path):
     """
     Handler for processing grants and contributions data.
     Extracts data from the XML and inserts it into the `grants_and_contributions` table.
 
     Args:
-        conn: psycopg2 connection object.
+        mg_trans: DB transaction object
         return_id: The ID of the `returns` table entry.
         root: The XML root element.
 
@@ -18,9 +17,30 @@ def handler(conn, return_id, root, file_path):
     """
     try:
         # Extract grants and contributions data
+
+        # The find method returns the FIRST INSTANCE (and there is only one in the return) of
+        # SupplementaryInformationGrp.  The result handles the iterator protocol allowing the
+        # for loop below to iterate over the individual elements.
+
+        # Because it is possible for a foundation to give more than one grant to the same recipient in a given year,
+        # there may be multiple grants exactly alike.   If this is an instance or reprocessing the same return for some
+        # reason, duplicate undetectable grants could occur.  To avoid this, it is necessary to explicitly delete any
+        # grants associated with the return before beginning the reprocessing.
+
         base_elements = root.find('./ReturnData/IRS990PF/SupplementaryInformationGrp')
-        if base_elements is None:
-            return None
+        if base_elements is None:           # this return contained no grants
+            return True
+
+        query = """
+            DELETE FROM grantsandcontributions
+            WHERE returnid = %s;
+            """
+        params = (return_id,)
+        try:
+            mg_trans.execute(query, params)
+        except Exception as e:
+            print(f"Fail deleting old grants: {e}")
+            raise e
 
         for base_element in base_elements:
             grants_and_contributions = extract_grants_and_contributions(base_element, file_path)
@@ -28,7 +48,7 @@ def handler(conn, return_id, root, file_path):
                 continue
 
             # Insert grants and contributions data
-            insert_grants_and_contributions(conn, return_id, grants_and_contributions)
+            insert_grants_and_contributions(mg_trans, return_id, grants_and_contributions)
         return True
 
     except Exception as e:
@@ -69,12 +89,12 @@ def extract_grants_and_contributions(base_element, file_path):
     }
 
 
-def insert_grants_and_contributions(conn, return_id, data):
+def insert_grants_and_contributions(mg_trans, return_id, data):
     """
     Insert data into the `grants_and_contributions` table.
 
     Args:
-        conn: psycopg2 connection object.
+        mg_trans: db connection object.
         return_id: The ID of the `returns` table entry.
         data: A dictionary containing grants and contributions data.
 
@@ -82,22 +102,17 @@ def insert_grants_and_contributions(conn, return_id, data):
         None
     """
     try:
-        with conn.cursor() as cur:
-            query = """
-                INSERT INTO grantsandcontributions (returnid, recipientname, addressline1, city, state, zipcode,
-                 recipientrelationship, purpose, amount)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-            """
-            params = (return_id, data['recipient_name'], data['recipient_address'], data['recipient_city'],
-                  data['recipient_state'], data['recipient_zip'], data['recipient_relationship'], data['purpose'],
-                  data['amount'])
-            actual_query = cur.mogrify(query, params).decode('utf-8')
-            cur.execute(query, params)
-            if cur.statusmessage != "INSERT 0 1":
-                print(f"Unexpected status in process_grants_and_contributions: {cur.statusmessage}")
-                conn.rollback()
-            else:
-                conn.commit()
+        query = """
+            INSERT INTO grantsandcontributions (returnid, recipientname, addressline1, city, state, zipcode,
+             recipientrelationship, purpose, amount)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """
+        params = (return_id, data['recipient_name'], data['recipient_address'], data['recipient_city'],
+              data['recipient_state'], data['recipient_zip'], data['recipient_relationship'], data['purpose'],
+              data['amount'])
+        result = mg_trans.execute(query, params=params)
+        if not result:
+            raise ValueError(f"grant to {data['recipient_name']} failed.")
     except Exception as e:
-        print(f"Error on insert to grants_and_contributions: {e}")
-        conn.rollback()
+        print(f"Error on insert to process_grants_and_contributions: {e}")
+        raise e

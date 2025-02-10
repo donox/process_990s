@@ -24,36 +24,34 @@ def extract_filer(root):
     }
 
 
-def insert_filer(conn, data):
+def insert_filer(mg_trans, data):
     """
     Insert data into the `filer` table. If the EIN already exists, print a message and compare columns.
 
     Args:
-        conn: psycopg2 connection object.
+        mg_trans: db connection object.
         data: A dictionary containing the data to insert.
     """
     try:
-        if data['ein'] == '203975531':
-            foo = 3
-        with conn.cursor() as cur:
-            query = """
-                    INSERT INTO filer (EIN, BusinessNameLine1, BusinessNameLine2, PhoneNum,
-                                       AddressLine1, City, State, ZIPCode)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (EIN) 
-                    DO UPDATE SET
-                       BusinessNameLine1 = EXCLUDED.BusinessNameLine1,
-                       BusinessNameLine2 = EXCLUDED.BusinessNameLine2, 
-                       PhoneNum = EXCLUDED.PhoneNum,
-                       AddressLine1 = EXCLUDED.AddressLine1,
-                       City = EXCLUDED.City,
-                       State = EXCLUDED.State,
-                       ZIPCode = EXCLUDED.ZIPCode;
-                """
-            params = (data['ein'], data['business_name_line1'], data['business_name_line2'],
-                      data['phone_number'], data['address_line1'], data['city'], data['state'], data['zip'])
-            actual_query = cur.mogrify(query, params).decode('utf-8')
-            cur.execute(query, params)
+        query = """
+                INSERT INTO filer (EIN, BusinessNameLine1, BusinessNameLine2, PhoneNum,
+                                   AddressLine1, City, State, ZIPCode)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (EIN) 
+                DO UPDATE SET
+                   BusinessNameLine1 = EXCLUDED.BusinessNameLine1,
+                   BusinessNameLine2 = EXCLUDED.BusinessNameLine2, 
+                   PhoneNum = EXCLUDED.PhoneNum,
+                   AddressLine1 = EXCLUDED.AddressLine1,
+                   City = EXCLUDED.City,
+                   State = EXCLUDED.State,
+                   ZIPCode = EXCLUDED.ZIPCode
+                RETURNING EIN;
+            """
+        params = (data['ein'], data['business_name_line1'], data['business_name_line2'],
+                  data['phone_number'], data['address_line1'], data['city'], data['state'], data['zip'])
+        result = mg_trans.execute_independent(query, params)
+        return result
     except Exception as e:
         print(f"Error in process_filer on insert. {e}")
-        foo = 3
+        raise e

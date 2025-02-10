@@ -23,5 +23,6 @@ CREATE TABLE Compensation (
     ExpenseAccount DECIMAL(15,2),
     HighestPaidEmployeeInfo TEXT,
     HighestPaidContractorInfo TEXT,
-    FOREIGN KEY (ReturnId) REFERENCES Return(ReturnId)
+    FOREIGN KEY (ReturnId) REFERENCES Return(ReturnId),
+    CONSTRAINT unique_return_person UNIQUE (ReturnId, PersonName)
 );

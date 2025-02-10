@@ -1,21 +1,28 @@
-import psycopg2
 from src.main import add_unhandled
 
 
-def handler(conn, return_id, root, file_path):
+def handler(mg_trans, return_id, root, file_path):
     """
     Handler for processing compensation information data.
+
+    Args:
+        mg_trans: DB transaction object
+        return_id: The ID of the `returns` table entry.
+        root: The XML root element.
+
+    Returns:
+        bool: True if successful, False otherwise.
     """
     try:
         base_element = root.find('./ReturnData/IRS990PF/OfficerDirTrstKeyEmplInfoGrp')
         if base_element is None:
-            return None
+            return True
 
         comp_info = extract_compensation_info(base_element, file_path)
         if not comp_info:
-            return None
+            return True
 
-        insert_compensation_info(conn, return_id, comp_info)
+        insert_compensation_info(mg_trans, return_id, comp_info)
         return True
 
     except Exception as e:
@@ -59,29 +66,43 @@ def extract_compensation_info(base_element, file_path):
     }
 
 
-def insert_compensation_info(conn, return_id, data):
+def insert_compensation_info(mg_trans, return_id, data):
     """
     Insert data into the compensation table.
     """
     try:
-        with conn.cursor() as cur:
-            for officer in data['officers']:
-                cur.execute("""
-                    INSERT INTO compensation (
-                        returnid, personname, title, averagehours, 
-                        compensation, employeebenefits, expenseaccount,
-                        highestpaidemployeeinfo, highestpaidcontractorinfo
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-                """, (
-                    return_id,
-                    officer['name'],
-                    officer['title'],
-                    float(officer['hours']) if officer['hours'] else None,
-                    float(officer['compensation']) if officer['compensation'] else None,
-                    float(officer['benefits']) if officer['benefits'] else None,
-                    float(officer['expenses']) if officer['expenses'] else None,
-                    data['highest_paid_employee'],
-                    data['highest_paid_contractor']
-                ))
+        for officer in data['officers']:
+            query = """
+                INSERT INTO compensation (
+                    returnid, personname, title, averagehours, 
+                    compensation, employeebenefits, expenseaccount,
+                    highestpaidemployeeinfo, highestpaidcontractorinfo
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (returnid, personname) DO UPDATE SET
+                    personname = EXCLUDED.personname,
+                    title = EXCLUDED.title,
+                    averagehours = EXCLUDED.averagehours,
+                    compensation = EXCLUDED.compensation,
+                    employeebenefits = EXCLUDED.employeebenefits,
+                    expenseaccount = EXCLUDED.expenseaccount,
+                    highestpaidemployeeinfo = EXCLUDED.highestpaidemployeeinfo,
+                    highestpaidcontractorinfo = EXCLUDED.highestpaidcontractorinfo;
+
+            """
+            params = (
+                return_id,
+                officer['name'],
+                officer['title'],
+                float(officer['hours']) if officer['hours'] else None,
+                float(officer['compensation']) if officer['compensation'] else None,
+                float(officer['benefits']) if officer['benefits'] else None,
+                float(officer['expenses']) if officer['expenses'] else None,
+                data['highest_paid_employee'],
+                data['highest_paid_contractor']
+            )
+            result = mg_trans.execute(query, params=params)
+            if not result:
+                raise ValueError(f"compensation for {officer['name']} failed.")
     except Exception as e:
         print(f"Error on insert to compensation: {e}")
+        raise e

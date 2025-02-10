@@ -3,13 +3,13 @@ import xml.etree.ElementTree as ET
 from src.main import add_unhandled
 
 
-def handler(conn, return_id, root, file_path):
+def handler(mg_trans, return_id, root, file_path):
     """
     Handler for processing distributable amount data.
     Extracts data from the XML and inserts it into the `distributableamount` table.
 
     Args:
-        conn: psycopg2 connection object.
+        mg_trans: DB transaction object
         return_id: The ID of the `returns` table entry.
         root: The XML root element.
 
@@ -20,14 +20,14 @@ def handler(conn, return_id, root, file_path):
         # Extract distributable amount data
         base_element = root.find('./ReturnData/IRS990PF/DistributableAmountGrp')
         if base_element is None:
-            return None
+            return True
 
         distributable_amount = extract_distributable_amount(base_element, file_path)
         if not distributable_amount:
-            return None
+            return True             # succeeded but no entries in group
 
             # Insert grants and contributions data
-        insert_distributable_amount(conn, return_id, distributable_amount)
+        insert_distributable_amount(mg_trans, return_id, distributable_amount)
         return True
 
     except Exception as e:
@@ -40,11 +40,11 @@ def extract_distributable_amount(base_element, file_path):
     Extract data for the `distributableamount` table from the XML file.
     """
 
-    min_return = base_element.findtext('./MinimumInvestmentReturnAmt', default=None)
-    investment_tax = base_element.findtext('./TaxBasedOnInvestmentIncomeAmt', default=None)
-    total_tax = base_element.findtext('./TotalTaxAmt', default=None)
-    amt_before_adjust = base_element.findtext('./DistributableBeforeAdjAmt', default=None)
-    amt_before_deduction = base_element.findtext('./DistributableBeforeDedAmt', default=None)
+    min_return = base_element.findtext('./MinimumInvestmentReturnAmt', default=0)
+    investment_tax = base_element.findtext('./TaxBasedOnInvestmentIncomeAmt', default=0)
+    total_tax = base_element.findtext('./TotalTaxAmt', default=0)
+    amt_before_adjust = base_element.findtext('./DistributableBeforeAdjAmt', default=0)
+    amt_before_deduction = base_element.findtext('./DistributableBeforeDedAmt', default=0)
     adjusted_amt = base_element.findtext('./DistributableAsAdjustedAmt', default=None)
     if adjusted_amt is None:            # Indicator that none of the group are present
         for elem in base_element:
@@ -61,12 +61,12 @@ def extract_distributable_amount(base_element, file_path):
     }
 
 
-def insert_distributable_amount(conn, return_id, data):
+def insert_distributable_amount(mg_trans, return_id, data):
     """
     Insert data into the `distributableamount` table.
 
     Args:
-        conn: psycopg2 connection object.
+        mg_trans: DB transaction object
         return_id: The ID of the `returns` table entry.
         data: A dictionary containing distributable amount data.
 
@@ -74,12 +74,25 @@ def insert_distributable_amount(conn, return_id, data):
         None
     """
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO distributableamount (returnid, minimuminvestmentreturn, taxbasedoninvestmentincome,
-                 totaltax, distributablebeforeadj, distributablebeforeded, distributableasadjusted)
-                VALUES (%s, %s, %s, %s, %s, %s, %s);
-            """, (return_id, int(data['min_return']), int(data['investment_tax']), int(data['total_tax']),
-                  int(data['amt_before_adjust']), int(data['amt_before_deduction']), int(data['adjusted_amt'])))
+        query = """
+            INSERT INTO distributableamount (
+                returnid, minimuminvestmentreturn, taxbasedoninvestmentincome,
+                totaltax, distributablebeforeadj, distributablebeforeded, distributableasadjusted
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (returnid) DO UPDATE SET
+                minimuminvestmentreturn = EXCLUDED.minimuminvestmentreturn,
+                taxbasedoninvestmentincome = EXCLUDED.taxbasedoninvestmentincome,
+                totaltax = EXCLUDED.totaltax,
+                distributablebeforeadj = EXCLUDED.distributablebeforeadj,
+                distributablebeforeded = EXCLUDED.distributablebeforeded,
+                distributableasadjusted = EXCLUDED.distributableasadjusted;
+
+        """
+        params = (return_id, int(data['min_return']), int(data['investment_tax']), int(data['total_tax']),
+              int(data['amt_before_adjust']), int(data['amt_before_deduction']), int(data['adjusted_amt']))
+        result = mg_trans.execute(query, params=params)
+        if not result:
+            raise ValueError(f"distributable_amount failed.")
     except Exception as e:
-        print(f"Error on insert to grants_and_contributions: {e}")
+        print(f"Error on insert to distributable_amount: {e}")
+        raise e

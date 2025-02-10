@@ -2,20 +2,28 @@ import psycopg2
 from src.main import add_unhandled
 
 
-def handler(conn, return_id, root, file_path):
+def handler(mg_trans, return_id, root, file_path):
     """
     Handler for processing expense  data.
+
+    Args:
+        mg_trans: DB transaction object
+        return_id: The ID of the `returns` table entry.
+        root: The XML root element.
+
+    Returns:
+        bool: True if successful, False otherwise.
     """
     try:
         base_element = root.find('./ReturnData/IRS990PF/AnalysisOfRevenueAndExpenses')
         if base_element is None:
-            return None
+            return True
 
         expense_info = extract_expenses(base_element, file_path)
         if not expense_info:
-            return None
+            return True
 
-        insert_expenses(conn, return_id, expense_info)
+        insert_expenses(mg_trans, return_id, expense_info)
         return True
 
     except Exception as e:
@@ -53,25 +61,37 @@ def extract_expenses(base_element, file_path):
     }
 
 
-def insert_expenses(conn, return_id, data):
+def insert_expenses(mg_trans, return_id, data):
     """
     Insert data into the expenses table.
     """
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
+        query = """
                 INSERT INTO expenses (
                     returnid, compensationamount, operatingexpenses,
                     contributionspaid, totalexpenses, accountingfees, otherexpenses
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s);
-            """, (
-                return_id,
-                float(data['compensation']) if data['compensation'] else None,
-                float(data['operating']) if data['operating'] else None,
-                float(data['contributions']) if data['contributions'] else None,
-                float(data['total']) if data['total'] else None,
-                float(data['accounting']) if data['accounting'] else None,
-                float(data['other']) if data['other'] else None
-            ))
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (returnid) DO UPDATE SET
+                    compensationamount = EXCLUDED.compensationamount,
+                    operatingexpenses = EXCLUDED.operatingexpenses,
+                    contributionspaid = EXCLUDED.contributionspaid,
+                    totalexpenses = EXCLUDED.totalexpenses,
+                    accountingfees = EXCLUDED.accountingfees,
+                    otherexpenses = EXCLUDED.otherexpenses;
+
+            """
+        params = (
+            return_id,
+            float(data['compensation']) if data['compensation'] else None,
+            float(data['operating']) if data['operating'] else None,
+            float(data['contributions']) if data['contributions'] else None,
+            float(data['total']) if data['total'] else None,
+            float(data['accounting']) if data['accounting'] else None,
+            float(data['other']) if data['other'] else None
+        )
+        result = mg_trans.execute(query, params=params)
+        if not result:
+            raise ValueError(f"expenses failed.")
     except Exception as e:
         print(f"Error on insert to expenses: {e}")
+        raise e

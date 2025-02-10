@@ -22,6 +22,7 @@ CREATE TABLE Return (
     Organization501c3ExemptPF BOOLEAN,
     FMVAssetsEOY DECIMAL(15,2),
     MethodOfAccountingCash BOOLEAN,
+    FileName VARCHAR(200),
     FOREIGN KEY (EIN) REFERENCES Filer(EIN),
     UNIQUE (EIN, TaxYear)
 );

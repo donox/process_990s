@@ -1,19 +1,28 @@
 import psycopg2
 
 
-def handler(conn, return_id, root, file_path):
+def handler(mg_trans, return_id, root, file_path):
     """
     Handler for processing key contacts data.
+
+    Args:
+        mg_trans: DB transaction object
+        return_id: The ID of the `returns` table entry.
+        root: The XML root element.
+        file_path: (unused - for compatibility with other handlers)
+
+    Returns:
+        bool: True if successful, False otherwise.
     """
     try:
         # First get the EIN from the Return table
-        with conn.cursor() as cur:
-            cur.execute("SELECT EIN FROM return WHERE ReturnId = %s", (return_id,))
-            result = cur.fetchone()
-            if not result:
-                print(f"Error: Return ID {return_id} not found")
-                return None
-            ein = result[0]
+        query = "SELECT EIN FROM return WHERE ReturnId = %s"
+        params = (return_id,)
+        result = mg_trans.execute(query, params=params)
+        if not result:
+            print(f"Error: Return ID {return_id} not found")
+            raise ValueError(f"Return with ID: {return_id} not found")
+        ein = result[0]
 
         contacts = root.findall('./ReturnData/IRS990PF/OfficerDirTrstKeyEmplInfoGrp/OfficerDirTrstKeyEmplGrp')
         if not contacts:
@@ -23,7 +32,7 @@ def handler(conn, return_id, root, file_path):
         if not contacts_data:
             return None
 
-        insert_key_contacts(conn, contacts_data, ein)
+        insert_key_contacts(mg_trans, contacts_data, ein)
         return True
 
     except Exception as e:
@@ -58,38 +67,36 @@ def extract_key_contacts(root):
     return results
 
 
-def insert_key_contacts(conn, data, ein):
+def insert_key_contacts(mg_trans, data, ein):
     """
     Insert data into the key_contacts table.
     """
     try:
-        with conn.cursor() as cur:
-            for contact in data:
-                try:
-                    cur.execute("""
-                        INSERT INTO keycontacts (
-                            EIN, PersonName, AddressLine1, City, State, ZipCode,
-                            Title, AverageHoursPerWeek, Compensation, EmployeeBenefits,
-                            ExpenseAccount
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (EIN, PersonName) DO NOTHING;
-                    """, (
-                        ein,
-                        contact['person_name'],
-                        contact['address_line1'],
-                        contact['city'],
-                        contact['state'],
-                        contact['zip'],
-                        contact['title'],
-                        contact['average_hours'],
-                        contact['compensation'],
-                        contact['employee_benefits'],
-                        contact['expense_account']
-                    ))
-                except psycopg2.IntegrityError as e:
-                    # Skip duplicates silently
-                    print(f"Found dupe key contact: {contact['person_name']}, {ein}")   # !!!!!!!!  DEBUG
-                    conn.rollback()
-                    continue
+        for contact in data:
+            query = """
+                INSERT INTO keycontacts (
+                    EIN, PersonName, AddressLine1, City, State, ZipCode,
+                    Title, AverageHoursPerWeek, Compensation, EmployeeBenefits,
+                    ExpenseAccount
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (EIN, PersonName) DO NOTHING;
+            """
+            params = (
+                ein,
+                contact['person_name'],
+                contact['address_line1'],
+                contact['city'],
+                contact['state'],
+                contact['zip'],
+                contact['title'],
+                contact['average_hours'],
+                contact['compensation'],
+                contact['employee_benefits'],
+                contact['expense_account']
+            )
+            result = mg_trans.execute(query, params=params)
+            if not result:
+                raise ValueError(f"key contact {contact['person_name']} failed.")
     except Exception as e:
-        print(f"Error on insert to key_contacts: {e}")
+        print(f"Error on insert to key_contact: {e}")
+        raise e

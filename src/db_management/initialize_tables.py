@@ -1,8 +1,9 @@
 import os
 import csv
+from src.db_management.manage_transactions import DBTransaction
 
 
-def table_exists(conn, table_name):
+def table_exists(mg_trans, table_name):
     """
     Check if a table exists in the database.
     """
@@ -12,12 +13,15 @@ def table_exists(conn, table_name):
             WHERE table_schema = 'public' AND table_name = %s
         );
     """
-    with conn.cursor() as cur:
-        cur.execute(query, (table_name,))
-        return cur.fetchone()[0]
+    params = (table_name,)
+    result = mg_trans.execute_independent(query, params=params)
+    if result:
+        return result[0]
+    else:
+        return None
 
 
-def get_table_schema(conn, table_name):
+def get_table_schema(mg_trans, table_name):
     """
     Get the schema of an existing table.
     """
@@ -26,9 +30,15 @@ def get_table_schema(conn, table_name):
         FROM information_schema.columns
         WHERE table_name = %s;
     """
-    with conn.cursor() as cur:
-        cur.execute(query, (table_name,))
-        return {row[0]: row[1] for row in cur.fetchall()}
+    params = (table_name,)
+    result = mg_trans.execute_independent(query, params=params)
+    if result:
+        return {row[0]: row[1] for row in result}
+    else:
+        return None
+    # with conn.cursor() as cur:
+    #     cur.execute(query, (table_name,))
+    #     return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def compare_schemas(existing_schema, desired_schema):
@@ -64,7 +74,7 @@ def compare_schemas(existing_schema, desired_schema):
     return columns_to_add, columns_with_mismatched_types
 
 
-def apply_modifications(conn, ddl_file, table_name, force=False):
+def apply_modifications(mg_trans, ddl_file, table_name, force=False):
     """
     BROKEN!!!  Can't handle modifications
     Modify the schema of an existing table to match the DDL.
@@ -85,7 +95,7 @@ def apply_modifications(conn, ddl_file, table_name, force=False):
     desired_schema = parse_ddl_safe(ddl_file)
 
     # Get the existing schema from the database
-    existing_schema = get_table_schema(conn, table_name)
+    existing_schema = get_table_schema(mg_trans, table_name)
 
     # Compare schemas
     columns_to_add, columns_with_mismatched_types = compare_schemas(existing_schema, desired_schema)
@@ -97,32 +107,33 @@ def apply_modifications(conn, ddl_file, table_name, force=False):
         raise ValueError("Schema modification failed due to type mismatches. Use force=True to override.")
 
     if columns_with_mismatched_types and force:
-        try:
-            with conn.cursor() as cur:
-                for col_name, existing_type, desired_type in columns_with_mismatched_types:
-                    print(f"Altering column '{col_name}' from type '{existing_type}' to '{desired_type}'.")
-                    alter_stmt = f"ALTER TABLE {table_name} ALTER COLUMN {col_name} TYPE {desired_type};"
-                    cur.execute(alter_stmt)
-            conn.commit()
-            print(f"Forced modifications applied to columns with mismatched types in table: {table_name}")
+        try:            # NEED TO USE mg_trans
+            # with conn.cursor() as cur:
+            #     for col_name, existing_type, desired_type in columns_with_mismatched_types:
+            #         print(f"Altering column '{col_name}' from type '{existing_type}' to '{desired_type}'.")
+            #         alter_stmt = f"ALTER TABLE {table_name} ALTER COLUMN {col_name} TYPE {desired_type};"
+            #         cur.execute(alter_stmt)
+            # conn.commit()
+            # print(f"Forced modifications applied to columns with mismatched types in table: {table_name}")
+            print("TABLE MODIFICATION BROKEN")     # !!!!!!!!!!!!!!!!!!!!!!!!!!
         except Exception as e:
-            conn.rollback()
+            # conn.rollback()
             print(f"Failed to modify mismatched columns in table {table_name}. Error: {e}")
 
     # Apply modifications for missing columns
     if columns_to_add:
-        try:
-            with conn.cursor() as cur:
-                for col_name, col_type in columns_to_add:
-                    print(f"Adding column '{col_name}' with type '{col_type}' to table '{table_name}'.")
-                    alter_stmt = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type};"
-                    cur.execute(alter_stmt)
-            conn.commit()
-            print(f"Columns added to table: {table_name}")
-        except Exception as e:
-            conn.rollback()
-            print(f"Failed to add columns to table {table_name}. Error: {e}")
-
+        # try:          # NEED TO USE mg_trans
+        #     with conn.cursor() as cur:
+        #         for col_name, col_type in columns_to_add:
+        #             print(f"Adding column '{col_name}' with type '{col_type}' to table '{table_name}'.")
+        #             alter_stmt = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type};"
+        #             cur.execute(alter_stmt)
+        #     conn.commit()
+        #     print(f"Columns added to table: {table_name}")
+        # except Exception as e:
+        #     conn.rollback()
+        #     print(f"Failed to add columns to table {table_name}. Error: {e}")
+        print("TABLE MODIFICATION BROKEN")  # !!!!!!!!!!!!!!!!!!!!!!!!!!
     # If no changes are needed
     if not columns_to_add and not columns_with_mismatched_types:
         print(f"No modifications required for table: {table_name}.")
@@ -171,10 +182,11 @@ def parse_ddl_safe(ddl_file):
     return schema
 
 
-def initialize_tables(conn, ddl_dir):
+def initialize_tables(config, ddl_dir):
     """
     Initialize or modify database tables based on DDL scripts.
     """
+    mg_trans = DBTransaction(config)
     table_ddl_files = {
         "filer": os.path.join(ddl_dir, "filer.sql"),        # DONE
         "return": os.path.join(ddl_dir, "return.sql"),        # DONE
@@ -207,63 +219,59 @@ def initialize_tables(conn, ddl_dir):
     }
 
     for table_name, ddl_file in table_ddl_files.items():
-        if table_exists(conn, table_name):
+        if table_exists(mg_trans, table_name):
             print(f"Table '{table_name}' exists. Checking schema...")
-            current_schema = get_table_schema(conn, table_name)
+            current_schema = get_table_schema(mg_trans, table_name)
             print(f"Current schema for '{table_name}': {current_schema}")
 
             # Here you can check if the schema matches your expected schema and apply modifications if needed
-            apply_modifications(conn, ddl_file, table_name)
+            apply_modifications(mg_trans, ddl_file, table_name)
 
         else:
             print(f"Table '{table_name}' does not exist. Creating...")
             try:
-                with conn.cursor() as cur:
-                    with open(ddl_file, 'r') as ddl:
-                        cur.execute(ddl.read())
-                conn.commit()
+                with open(ddl_file, 'r') as ddl:
+                    query = ddl.read()
+                    mg_trans.execute_independent(query)
                 print(f"Table '{table_name}' created successfully.")
             except Exception as e:
-                conn.rollback()
                 print(f"Failed to create table {table_name}. Error: {e}")
 
 
-def create_zip_coordinates_table(conn):
-    with conn.cursor() as cur:
-        try:
-            # Check if table exists
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'zip_coordinates'
+def create_zip_coordinates_table(mg_trans):
+    try:
+        # Check if table exists
+        query = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'zip_coordinates'
+            );
+        """
+        result = mg_trans.execute_independent(query)
+
+        if not result:
+            query = """
+                CREATE TABLE zip_coordinates (
+                    zipcode VARCHAR(5) PRIMARY KEY,
+                    city VARCHAR(100),
+                    state CHAR(2),
+                    area_codes VARCHAR(100),
+                    latitude DECIMAL(9,6),
+                    longitude DECIMAL(9,6),
+                    population INTEGER
                 );
-            """)
-            table_exists = cur.fetchone()[0]
 
-            if not table_exists:
-                cur.execute("""
-                    CREATE TABLE zip_coordinates (
-                        zipcode VARCHAR(5) PRIMARY KEY,
-                        city VARCHAR(100),
-                        state CHAR(2),
-                        area_codes VARCHAR(100),
-                        latitude DECIMAL(9,6),
-                        longitude DECIMAL(9,6),
-                        population INTEGER
-                    );
+                CREATE INDEX idx_zip_coords_state ON zip_coordinates(state);
+                CREATE INDEX idx_zip_coords_latlong ON zip_coordinates(latitude, longitude);
+            """
+            mg_trans.execute_independent(query)
+            print("Created zip_coordinates table")
+        else:
+            print("zip_coordinates table already exists")
 
-                    CREATE INDEX idx_zip_coords_state ON zip_coordinates(state);
-                    CREATE INDEX idx_zip_coords_latlong ON zip_coordinates(latitude, longitude);
-                """)
-                conn.commit()
-                print("Created zip_coordinates table")
-            else:
-                print("zip_coordinates table already exists")
-
-        except Exception as e:
-            conn.rollback()
-            print(f"Error creating zip_coordinates table: {str(e)}")
-            raise
+    except Exception as e:
+        print(f"Error creating zip_coordinates table: {str(e)}")
+        raise
 
 
 def load_zip_data(conn, csv_path):

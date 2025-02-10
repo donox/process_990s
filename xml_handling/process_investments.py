@@ -4,13 +4,13 @@ import psycopg2
 import xml.etree.ElementTree as ET
 
 
-def handler(conn, return_id, root, file_path):
+def handler(mg_trans, return_id, root, file_path):
     """
     Handler for processing investments data.
     Extracts data from the XML and inserts it into the `investments` table.
 
     Args:
-        conn: psycopg2 connection object.
+        mg_trans: DB transaction object
         return_id: The ID of the `returns` table entry.
         root: The XML root element.
 
@@ -22,9 +22,19 @@ def handler(conn, return_id, root, file_path):
         investments = extract_investments(root, file_path)
         if not investments:
             return True  # No data to process
+        query = """
+            DELETE FROM investments
+            WHERE returnid = %s;
+            """
+        params = (return_id,)
+        try:
+            mg_trans.execute(query, params)
+        except Exception as e:
+            print(f"Fail deleting old investments: {e}")
+            raise e
 
         # Insert investments data
-        insert_investments(conn, return_id, investments)
+        insert_investments(mg_trans, return_id, investments)
         return True
 
     except Exception as e:
@@ -52,16 +62,20 @@ def extract_investments(root, file_path):
     return result
 
 
-def insert_investments(conn, return_id, data):
+def insert_investments(mg_trans, return_id, data):
     """
     Insert data into the `investments` table.
     """
     try:
-        with conn.cursor() as cur:
-            for investment in data:
-                cur.execute("""
-                    INSERT INTO investments (return_id, stock_name, eoy_book_value, eoy_fmv)
-                    VALUES (%s, %s, %s, %s);
-                """, (return_id, investment['stock_name'], investment['eoy_book_value'], investment['eoy_fmv']))
+        for investment in data:
+            query = """
+                INSERT INTO investments (return_id, stock_name, eoy_book_value, eoy_fmv)
+                VALUES (%s, %s, %s, %s);
+            """
+            params = (return_id, investment['stock_name'], investment['eoy_book_value'], investment['eoy_fmv'])
+            result = mg_trans.execute(query, params=params)
+            if not result:
+                raise ValueError(f"investment {investment['stock_name']} failure")
     except Exception as e:
-        print(f"Error on insert to invstements: {e}")
+        print(f"Error on insert to investments: {e}")
+        raise e

@@ -41,35 +41,38 @@ def extract_returns(root, file_path):
         'organization501c3_exempt_pf': organization501c3_exempt_pf,
         'fmv_assets_eoy': fmv_assets_eoy,
         'method_of_accounting_cash': method_of_accounting_cash,
+        'filename': file_path,
     }
 
 
-def insert_returns(conn, data):
+def insert_returns(mg_trans, data):
     """
     Insert data into the `returns` table and return the generated ID.
     """
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO return (ReturnFile, EIN, TaxYear, ReturnType, TaxPeriodBegin, TaxPeriodEnd, 
-                Organization501c3ExemptPF, FMVAssetsEOY, MethodOfAccountingCash )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) 
-                ON CONFLICT (EIN, TaxYear) 
-                DO UPDATE SET
-                   ReturnFile = EXCLUDED.ReturnFile,
-                   ReturnType = EXCLUDED.ReturnType,
-                   TaxPeriodBegin = EXCLUDED.TaxPeriodBegin,
-                   TaxPeriodEnd = EXCLUDED.TaxPeriodEnd,
-                   Organization501c3ExemptPF = EXCLUDED.Organization501c3ExemptPF,
-                   FMVAssetsEOY = EXCLUDED.FMVAssetsEOY,
-                   MethodOfAccountingCash = EXCLUDED.MethodOfAccountingCash
-                RETURNING returnid;
-            """, (
+        query = """
+            INSERT INTO return (ReturnFile, EIN, TaxYear, ReturnType, TaxPeriodBegin, TaxPeriodEnd, 
+            Organization501c3ExemptPF, FMVAssetsEOY, MethodOfAccountingCash, FileName )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+            ON CONFLICT (EIN, TaxYear) 
+            DO UPDATE SET
+               ReturnFile = EXCLUDED.ReturnFile,
+               ReturnType = EXCLUDED.ReturnType,
+               TaxPeriodBegin = EXCLUDED.TaxPeriodBegin,
+               TaxPeriodEnd = EXCLUDED.TaxPeriodEnd,
+               Organization501c3ExemptPF = EXCLUDED.Organization501c3ExemptPF,
+               FMVAssetsEOY = EXCLUDED.FMVAssetsEOY,
+               MethodOfAccountingCash = EXCLUDED.MethodOfAccountingCash,
+               FileName = EXCLUDED.FileName
+            RETURNING returnid;
+        """
+        params = (
             data['return_file'], data['ein'], data['tax_year'], data['return_type'], data['tax_period_start'],
             data['tax_period_end'], data['organization501c3_exempt_pf'], data['fmv_assets_eoy'],
-            data['method_of_accounting_cash']))
-            return_id = cur.fetchone()[0]
-            return return_id
+            data['method_of_accounting_cash'], data['filename'])
+        return_id = mg_trans.execute(query, params=params)
+        return return_id[0]
+
     except Exception as e:
-        print (f"Except in insert_returns: {e}")
-        foo = 3
+        print(f"Error in insert_returns: {e}")
+        raise e

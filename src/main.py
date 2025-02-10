@@ -10,6 +10,7 @@ from data_sources.grant_analysis.grant_distribution_analysis import BaseGrantDis
 from data_sources.grant_analysis.semantic_matching_analysis import SemanticMatching
 from db_management.transformers.determine_distances import DetermineDistances
 from data_sources.grant_analysis.scoring_engine import GrantScorer, ScoringCriteria
+from db_management.manage_transactions import DBTransaction
 import os
 import csv
 
@@ -71,7 +72,9 @@ def main():
     load_unhandled()
 
     # Connect to the database
-    conn = connect_to_db(config)
+    # conn = connect_to_db(config)
+    manage_trans = DBTransaction(config)                            # WORK THROUGH conn errors substituting manage_trans
+
     setup = True           # Build database and process xml files.
     setup_initialize_tables = False     # Set to true to rebuild tables (alter mode isn't working)
     geo = False             # Analyze locations of foundations, and grants
@@ -93,13 +96,13 @@ def main():
             # Initialize or modify tables
             # print("Initializing or modifying database tables...")
             if setup_initialize_tables:
-                initialize_tables(conn, DDL_DIR)    # Fails on any table modification
+                initialize_tables(config, DDL_DIR)    # Fails on any table modification
 
             # create and load zip-code table.  Drop existing table before running.
             # create_zip_coordinates_table(conn)                                    #  !!!!!!! uncomment zip functions
             # load_zip_data(conn, zip_code_list)   # fails if directory already exists
 
-            process_directory(xml_dir, conn)
+            process_directory(xml_dir, config)
 
         if geo:
             geo_processor = BaseGrantDistributionAnalyzer(conn)
@@ -131,8 +134,9 @@ def main():
         if reports:
             # BUILD REPORTS
             # Possible reports:  ['single_filer', 'foundation_list']
-            reports_to_build = ['foundation_list']   # List of reports to be generated in this run
-            filer_ein = 274133050  # Gallogly Foundation            # ein of filer for filer specific reports
+            reports_to_build = ['single_filer']   # List of reports to be generated in this run
+            filer_ein = 920550245  # Butt Rogers (SA - many grants)
+            filer_ein = 742833381  # Kelleher Foundation            # ein of filer for filer specific reports
             start_date = str(datetime.date(2023, 1, 1))
             end_date = str(datetime.date(2024, 5, 1))
             other_data = {"start_date": start_date,
@@ -182,9 +186,6 @@ def main():
         # Additional logic for processing XML files, etc.
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally:
-        conn.close()
-        print("Database connection closed.")
 
 
 if __name__ == "__main__":
