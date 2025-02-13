@@ -216,6 +216,8 @@ def initialize_tables(config, ddl_dir):
         "supplementary_information": os.path.join(ddl_dir, "supplementary_information.sql"),         # DONE
         # "taxes_detail": os.path.join(ddl_dir, "taxes_detail.sql"),
         "undistributed_income": os.path.join(ddl_dir, "undistributed_income.sql"),        # DONE
+        "unknown_zipcodes": os.path.join(ddl_dir, "unknown_zipcodes.sql"),  # DONE
+        "zip_coordinates": os.path.join(ddl_dir, "zip_coordinates.sql"),  # DONE
     }
 
     for table_name, ddl_file in table_ddl_files.items():

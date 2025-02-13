@@ -5,8 +5,8 @@ from statistics import mean, stdev
 
 
 class ZipDistance:
-    def __init__(self, db_connection):
-        self.conn = db_connection
+    def __init__(self, mg_trans):
+        self.mg_trans = mg_trans
         self.known_coordinates = {}  # Memoize data to minimize queries
 
     def get_zip_coordinates(self, zipcode: str) -> Tuple[float, float]:
@@ -17,21 +17,24 @@ class ZipDistance:
             return result
         except KeyError:
             pass
-        with self.conn.cursor() as cur:
-            cur.execute("""
+        query = """
                 SELECT latitude, longitude 
                 FROM zip_coordinates 
                 WHERE zipcode = %s
-            """, (zc,))
-            result = cur.fetchone()
-            self.known_coordinates[zc] = result
-            if not result:
-                print(f"ZIP Not Found: {zipcode} in get_zip_coordinates")
-                cur.execute("""INSERT INTO unknown_zipcodes (zipcode)
-                    VALUES (%s)
-                    ON CONFLICT DO NOTHING;""", (zipcode,))
-                self.conn.commit()
-            return result if result else None
+            """
+        params = (zc,)
+        result = self.mg_trans.execute(query, params=params)
+        if result:
+            self.known_coordinates[zc] = result[0]
+            return result[0]
+        else:
+            print(f"ZIP Not Found: {zipcode} in get_zip_coordinates")
+            query = """INSERT INTO unknown_zipcodes (zipcode)
+                VALUES (%s)
+                ON CONFLICT DO NOTHING;"""
+            params = (zipcode,)
+            result = self.mg_trans.execute_independent(query, params=params)   # returns True on success
+        return result
 
     def calculate_distance(self, zip1: str, zip2: str) -> float:
         """Calculate distance in miles between two zipcodes"""
@@ -68,7 +71,7 @@ class ZipDistance:
         coords = []
         for zip_code in zipcodes:
             coord = self.get_zip_coordinates(zip_code)
-            if coord:
+            if coord and type(coord) is not bool:           # True returned on unknown zipcode
                 coords.append(coord)
 
         if not coords:
@@ -76,6 +79,10 @@ class ZipDistance:
 
         if len(coords) == 1:
             return coords[0], None
+        try:
+            mean_lat = sum(c[0] for c in coords) / len(coords)
+        except Exception as e:
+            foo = 3
 
         mean_lat = sum(c[0] for c in coords) / len(coords)
         mean_lon = sum(c[1] for c in coords) / len(coords)

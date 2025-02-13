@@ -111,9 +111,9 @@ class SingleFiler(BaseReport):
                 for grant in self.data['Grants']:
                     row = table.add_row().cells
                     row[0].text = str(grant[0])
-                    row[1].text = grant[1]
+                    row[1].text = str(grant[1])
                     row[2].text = str(int(grant[3]))
-                    row[3].text = grant[2]
+                    row[3].text = str(grant[2])
 
                 else:
                     para.text = content

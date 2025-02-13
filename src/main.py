@@ -75,10 +75,10 @@ def main():
     # conn = connect_to_db(config)
     manage_trans = DBTransaction(config)                            # WORK THROUGH conn errors substituting manage_trans
 
-    setup = True           # Build database and process xml files.
+    setup = False           # Build database and process xml files.
     setup_initialize_tables = False     # Set to true to rebuild tables (alter mode isn't working)
-    geo = False             # Analyze locations of foundations, and grants
-    keys = False            # Analyze locations of key staff
+    geo = True             # Analyze locations of foundations, and grants
+    keys = True            # Analyze locations of key staff
     semantic = False        # Determine semantic similarity for foundations to WW
     score = False           # Build dict summarizing scoring for a specific ein
     score_all = False       # Determine score for all foundations
@@ -105,11 +105,11 @@ def main():
             process_directory(xml_dir, config)
 
         if geo:
-            geo_processor = BaseGrantDistributionAnalyzer(conn)
+            geo_processor = BaseGrantDistributionAnalyzer(config)
             geo_processor.execute_analysis()
 
         if keys:
-            key_processor = BaseGrantDistributionAnalyzer(conn)
+            key_processor = BaseGrantDistributionAnalyzer(config)
             key_processor.execute_key_analysis()
 
         if semantic:
@@ -135,8 +135,19 @@ def main():
             # BUILD REPORTS
             # Possible reports:  ['single_filer', 'foundation_list']
             reports_to_build = ['single_filer']   # List of reports to be generated in this run
-            filer_ein = 920550245  # Butt Rogers (SA - many grants)
-            filer_ein = 742833381  # Kelleher Foundation            # ein of filer for filer specific reports
+            # filer_ein = 920550245  # Butt Rogers (SA - many grants)
+            # filer_ein = 742833381  # Kelleher Foundation            # ein of filer for filer specific reports
+            # filer_ein = 741460482   # Sterling-Turner
+            # filer_ein = 741460483   # Carroll Turner
+            # filer_ein = 741460483       # Darwood
+            # filer_ein = 742897518       # Matthew 6
+            # filer_ein = 766076267       # Welder Smith?
+            # filer_ein = 760700065       # Wong
+            # filer_ein = 207318388       # Broday
+            # filer_ein = 760463240       # Margolin
+            # filer_ein = 237958494           # Liebscher
+            # filer_ein = 814020878           # Meyer Levy
+            filer_ein = 208798188           # Wishes and Prayers
             start_date = str(datetime.date(2023, 1, 1))
             end_date = str(datetime.date(2024, 5, 1))
             other_data = {"start_date": start_date,

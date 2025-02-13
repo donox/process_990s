@@ -1,7 +1,11 @@
 import psycopg2
+from psycopg2.extras import execute_values
 from datetime import datetime
+from io import StringIO
+import csv
 from typing import Optional, List
 from src.db_management.manage_config import connect_to_db
+
 
 class DBTransaction:
     def __init__(self, config):
@@ -54,9 +58,63 @@ class DBTransaction:
             with independent_conn.cursor() as independent_cur:
                 try:
                     independent_cur.execute(query, params)
-                    result = independent_cur.fetchall() if independent_cur.description else None
+                    if query.strip().upper().startswith('SELECT'):
+                        result = independent_cur.fetchall()
+                    elif query.upper().find('RETURNING') != -1:
+                        result = independent_cur.fetchone()
+                    else:
+                        result = True
                     independent_conn.commit()
                     return result
+                except Exception as e:
+                    independent_conn.rollback()
+                    raise e
+
+    def copy_from_independent(self, data, table_name: str, columns: List[str]):
+        """Use COPY FROM for very fast bulk inserts with independent connection"""
+        if not table_name or not columns:
+            raise ValueError("Table name and columns must be specified")
+
+        with connect_to_db(self.config) as independent_conn:
+            with independent_conn.cursor() as independent_cur:
+                try:
+                    # Verify table exists
+                    independent_cur.execute(
+                        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s)",
+                        (table_name,)
+                    )
+                    if not independent_cur.fetchone()[0]:
+                        raise ValueError(f"Table {table_name} does not exist")
+
+                    with StringIO() as f:
+                        writer = csv.writer(f)
+                        writer.writerows(data)
+                        f.seek(0)
+
+                        independent_cur.copy_from(f, table_name, columns=columns, sep=',')
+                        independent_conn.commit()
+                except Exception as e:
+                    independent_conn.rollback()
+                    raise e
+
+    def execute_values_independent(self, query: str, params_list: List[tuple], page_size: int = 1000):
+        """Use execute_values for efficient bulk inserts with independent connection"""
+        if not query.strip().upper().startswith('INSERT'):
+            raise ValueError("Query must be an INSERT statement")
+
+        if not params_list:
+            raise ValueError("params_list cannot be empty")
+
+        with connect_to_db(self.config) as independent_conn:
+            with independent_conn.cursor() as independent_cur:
+                try:
+                    execute_values(
+                        independent_cur,
+                        query,
+                        params_list,
+                        page_size=page_size
+                    )
+                    independent_conn.commit()
                 except Exception as e:
                     independent_conn.rollback()
                     raise e
