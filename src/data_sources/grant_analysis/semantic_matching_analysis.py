@@ -1,8 +1,11 @@
 from sentence_transformers import SentenceTransformer, util
+from src.db_management.manage_transactions import DBTransaction
 
 
 class SemanticMatching:
-    def __init__(self, db_connection,  device='cpu', model_name='all-MiniLM-L6-v2'):
+    def __init__(self, config,  device='cpu', model_name='all-MiniLM-L6-v2'):
+        self.config = config
+        self.mg_trans = DBTransaction(config)
         self.model = SentenceTransformer(model_name)
         # self.ww_mission = """Wonders & Worries provides free, professional support for children and teenagers
         # ages 2-18 through a parent's serious illness or injury. The organization offers child life services,
@@ -14,7 +17,6 @@ class SemanticMatching:
         #  not limited to cancer, and offers services in both English and Spanish"""
         self.ww_mission = """parental illness coping support child life services general operation"""
         self.ww_encoded = self.model.encode(self.ww_mission)
-        self.conn = db_connection
         self.filer_grants = {}
         self.semantic_query = """
         SELECT EIN as ein, recipient as foundation, purpose as grant_purpose
@@ -22,14 +24,13 @@ class SemanticMatching:
         WHERE purpose IS NOT NULL;
         """
         try:
-            with self.conn.cursor() as cur:
-                cur.execute(self.semantic_query)
-                for row in cur.fetchall():
-                    ein = row[0]
-                    self.filer_grants[ein] = {
-                        'foundation': row[1],
-                        'grant_purpose': row[2],
-                    }
+            result = self.mg_trans.execute_independent(self.semantic_query)
+            for row in result:
+                ein = row[0]
+                self.filer_grants[ein] = {
+                    'foundation': row[1],
+                    'grant_purpose': row[2],
+                }
         except Exception as e:
             print(f"Semantic query failure: {e}")
 
@@ -42,7 +43,8 @@ class SemanticMatching:
     def execute_semantic_analysis(self):
         insert_query = """
         INSERT INTO grant_semantic_score (EIN, foundation_name, purpose, similarity_score)
-        VALUES (%s, %s, %s, %s);
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT DO NOTHING;
         """
         progress = 0
         total = 0
@@ -59,25 +61,24 @@ class SemanticMatching:
                         progress = 0
                         print(f"{total} scored")
                     if score > 0.2:
-                        with self.conn.cursor() as cur:
-                            cur.execute(insert_query, (ein, foundation, purpose, score))
-                            self.conn.commit()
+                        params = (ein, foundation, purpose, score)
+                        self.mg_trans.execute_independent(insert_query, params=params)
             except Exception as e:
                 print(f"Semantic analysis failure for EIN {ein}: {e}")
-                self.conn.rollback()
 
-    @staticmethod
-    def determine_similarity(db_conn, ein):
+    def determine_similarity(self, ein):
         """Get similarity score for a foundation."""
         query = """
-            SELECT similarity_score FROM grant_similarity_score 
-            WHERE ein = '%s';
+            SELECT similarity_score FROM grant_semantic_score 
+            WHERE ein = %s;
             """
         try:
-            with db_conn.cursor() as cur:
-                cur.execute(query, (ein,))
-                score = cur.fetchone()[0]
+            result = self.mg_trans.execute_independent(query, params=(ein,))
+            if result:
+                score = result[0]
                 return score
+            else:
+                return None
         except Exception as e:
             print(f"No similarity score found for foundation: {ein}")
             return None

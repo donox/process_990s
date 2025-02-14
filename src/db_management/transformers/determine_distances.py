@@ -1,12 +1,14 @@
 from src.data_sources.grant_analysis.geo_utils import ZipDistance
+from src.db_management.manage_transactions import DBTransaction
 import traceback
 
 
 class DetermineDistances():
     """Class to make distance calculations from source to target foundations."""
-    def __init__(self, db_connection, target_zipcode):
-        self.conn = db_connection
-        self.zip_distance = ZipDistance(db_connection)
+    def __init__(self, config, target_zipcode):
+        self.config = config
+        self.mg_trans = DBTransaction(self.config)
+        self.zip_distance = ZipDistance(self.mg_trans)
         self.target = target_zipcode
         self.target_coordinates = self.zip_distance.get_zip_coordinates(target_zipcode.lstrip('0'))
         self.filer_zip_coord_query = """
@@ -32,9 +34,8 @@ class DetermineDistances():
     def get_distances_to_foundation(self, ein):
         foundation_zip = None
         try:
-            with self.conn.cursor() as cur:
-                cur.execute(self.filer_zip_coord_query, (ein,))
-                foundation_zip = cur.fetchone()[1]
+            result = self.mg_trans.execute_independent(self.filer_zip_coord_query, params=(ein,))
+            foundation_zip =result[0][1]
         except Exception as e:
             print(f"Failure retrieving foundation {ein} zipcode\n  {traceback.format_exc()}")
             return None
@@ -43,13 +44,11 @@ class DetermineDistances():
             return None
         foundation_zip = foundation_zip.lstrip('0')
         foundation_coordinates = self.zip_distance.get_zip_coordinates(foundation_zip)
-        if not foundation_coordinates:
+        if not foundation_coordinates or type(foundation_coordinates) is bool:
             return None
         results = None
         try:
-            with self.conn.cursor() as cur:
-                cur.execute(self.distances_query, (ein,))
-                results = cur.fetchall()
+            results = self.mg_trans.execute_independent(self.distances_query, (ein,))
         except Exception as e:
             print(f"Foundation geo data fail: {e}")
             return None

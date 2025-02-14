@@ -11,7 +11,11 @@ class ZipDistance:
 
     def get_zip_coordinates(self, zipcode: str) -> Tuple[float, float]:
         """Get lat/long for a zipcode from database"""
-        zc = zipcode.lstrip('0')
+        if len(zipcode) > 5:
+            zc = zipcode[:-4]
+        else:
+            zc = zipcode
+        zc = zc.lstrip('0')
         try:
             result = self.known_coordinates[zc]
             return result
@@ -32,7 +36,7 @@ class ZipDistance:
             query = """INSERT INTO unknown_zipcodes (zipcode)
                 VALUES (%s)
                 ON CONFLICT DO NOTHING;"""
-            params = (zipcode,)
+            params = (zc,)
             result = self.mg_trans.execute_independent(query, params=params)   # returns True on success
         return result
 

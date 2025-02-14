@@ -77,11 +77,11 @@ def main():
 
     setup = False           # Build database and process xml files.
     setup_initialize_tables = False     # Set to true to rebuild tables (alter mode isn't working)
-    geo = True             # Analyze locations of foundations, and grants
-    keys = True            # Analyze locations of key staff
+    geo = False             # Analyze locations of foundations, and grants
+    keys = False            # Analyze locations of key staff
     semantic = False        # Determine semantic similarity for foundations to WW
-    score = False           # Build dict summarizing scoring for a specific ein
-    score_all = False       # Determine score for all foundations
+    score = True           # Build dict summarizing scoring for a specific ein
+    score_all = True       # Determine score for all foundations
     reports = False         # Create reports in docx format
     spreadsheets = False     # Create spreadsheets in xls or csv format
     try:
@@ -113,23 +113,25 @@ def main():
             key_processor.execute_key_analysis()
 
         if semantic:
-            semantic_processor = SemanticMatching(conn)
+            semantic_processor = SemanticMatching(config)
             semantic_processor.execute_semantic_analysis()
 
         if score:
             austin_zip = '78701'
             ein = '010277832'
-            determine_distances = DetermineDistances(conn, austin_zip)
+            sm = SemanticMatching(config)
+            determine_distances = DetermineDistances(config, austin_zip)
             result_dictionary = determine_distances.get_distances_to_foundation(ein)
             result_dict = determine_distances.determine_distances_to_target(ein, result_dictionary)
-            result = SemanticMatching.determine_similarity(conn, ein)
+            result = sm.determine_similarity(ein)
             result_dict['similarity'] = result
 
         if score_all:
             criteria = ScoringCriteria()
-            scorer = GrantScorer(conn, criteria)
+            scorer = GrantScorer(config, criteria)
             scorer.score_all_filers()
             results = scorer.get_all_results()
+            foo = 3
 
         if reports:
             # BUILD REPORTS

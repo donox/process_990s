@@ -4,5 +4,6 @@ CREATE TABLE grant_semantic_score (
     foundation_name TEXT,
     purpose TEXT,
     similarity_score FLOAT,
-    PRIMARY KEY (EIN, foundation_name, purpose)
+    PRIMARY KEY (EIN, foundation_name, purpose),
+    UNIQUE (ein, foundation_name)
 );

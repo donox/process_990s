@@ -217,11 +217,12 @@ def initialize_tables(config, ddl_dir):
         # "taxes_detail": os.path.join(ddl_dir, "taxes_detail.sql"),
         "undistributed_income": os.path.join(ddl_dir, "undistributed_income.sql"),        # DONE
         "unknown_zipcodes": os.path.join(ddl_dir, "unknown_zipcodes.sql"),  # DONE
+        "view_grantsbyfiler": os.path.join(ddl_dir, "view_grants_by_filer.sql"),  # DONE
         "zip_coordinates": os.path.join(ddl_dir, "zip_coordinates.sql"),  # DONE
     }
 
     for table_name, ddl_file in table_ddl_files.items():
-        if table_exists(mg_trans, table_name):
+        if table_exists(mg_trans, table_name) and not table_name.startswith('view'):
             print(f"Table '{table_name}' exists. Checking schema...")
             current_schema = get_table_schema(mg_trans, table_name)
             print(f"Current schema for '{table_name}': {current_schema}")
